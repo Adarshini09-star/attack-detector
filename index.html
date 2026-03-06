@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Outfit:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #16161f;
+    --border: rgba(255,255,255,0.07);
+    --accent: #00e5ff;
+    --accent2: #ff3cac;
+    --accent3: #7b2fff;
+    --text: #f0f0f8;
+    --muted: #6b6b80;
+    --danger: #ff4f4f;
+    --safe: #00e5a0;
+    --warn: #ffd600;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* === BACKGROUND MESH === */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 10% 0%, rgba(0,229,255,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 35% at 90% 100%, rgba(123,47,255,0.1) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 50% at 50% 50%, rgba(255,60,172,0.04) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* === GRID OVERLAY === */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page-wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px 80px;
+  }
+
+  /* === LANGUAGE BAR === */
+  .lang-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-bottom: 48px;
+  }
+
+  .lang-label {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-right: 8px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .lang-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+  }
+
+  .lang-btn:hover {
+    border-color: rgba(0,229,255,0.3);
+    color: var(--accent);
+  }
+
+  .lang-btn.active {
+    background: rgba(0,229,255,0.08);
+    border-color: rgba(0,229,255,0.4);
+    color: var(--accent);
+  }
+
+  /* === HEADER === */
+  .header {
+    margin-bottom: 48px;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(0,229,255,0.06);
+    border: 1px solid rgba(0,229,255,0.2);
+    padding: 5px 12px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.8s ease infinite;
+  }
+
+  h1 {
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    font-style: italic;
+    background: linear-gradient(135deg, #fff 30%, rgba(0,229,255,0.8) 70%, rgba(123,47,255,0.7) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 14px;
+  }
+
+  .subtitle {
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.6;
+    font-weight: 400;
+    max-width: 440px;
+  }
+
+  /* === TABS === */
+  .tab-row {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 5px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    animation: fadeUp 0.6s 0.1s ease both;
+  }
+
+  .tab-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 11px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .tab-btn svg { flex-shrink: 0; }
+
+  .tab-btn:hover { color: var(--text); }
+
+  .tab-btn.active {
+    background: var(--surface2);
+    color: var(--text);
+    box-shadow: 0 1px 0 0 rgba(0,229,255,0.2), 0 0 0 1px rgba(0,229,255,0.08);
+  }
+
+  .tab-btn.active .tab-icon { color: var(--accent); }
+
+  /* === CARD === */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    animation: fadeUp 0.6s 0.15s ease both;
+    transition: border-color 0.3s;
+  }
+
+  .card:hover { border-color: rgba(255,255,255,0.12); }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* === INPUTS === */
+  textarea, input[type="text"] {
+    width: 100%;
+    background: linear-gradient(135deg, rgba(200,185,255,0.13) 0%, rgba(160,130,255,0.09) 100%);
+    border: 1px solid rgba(190,165,255,0.4);
+    border-radius: 10px;
+    color: #e8e0ff;
+    font-family: 'DM Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.65;
+    padding: 16px 18px;
+    resize: none;
+    outline: none;
+    transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+    box-shadow: inset 0 1px 0 rgba(160,120,255,0.08), 0 2px 12px rgba(80,40,180,0.15);
+  }
+
+  textarea { height: 160px; }
+
+  input[type="text"] { height: 52px; }
+
+  textarea:focus, input[type="text"]:focus {
+    border-color: rgba(190,160,255,0.7);
+    background: linear-gradient(135deg, rgba(220,205,255,0.18) 0%, rgba(180,150,255,0.13) 100%);
+    box-shadow: 0 0 0 3px rgba(160,120,255,0.1), inset 0 1px 0 rgba(220,200,255,0.15);
+  }
+
+  textarea::placeholder, input::placeholder {
+    color: rgba(190,170,240,0.6);
+    font-size: 13px;
+  }
+
+  /* === BUTTON === */
+  .analyze-btn {
+    width: 100%;
+    margin-top: 16px;
+    padding: 15px 24px;
+    background: linear-gradient(135deg, rgba(0,229,255,0.15), rgba(123,47,255,0.15));
+    border: 1px solid rgba(0,229,255,0.3);
+    border-radius: 10px;
+    color: var(--accent);
+    font-family: 'Outfit', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: all 0.25s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .analyze-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0,229,255,0.1), rgba(123,47,255,0.1));
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+
+  .analyze-btn:hover {
+    border-color: rgba(0,229,255,0.6);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 32px rgba(0,229,255,0.12);
+  }
+
+  .analyze-btn:hover::before { opacity: 1; }
+
+  .analyze-btn:active { transform: translateY(0); }
+
+  .analyze-btn.loading {
+    pointer-events: none;
+    opacity: 0.7;
+  }
+
+  /* === SPINNER === */
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(0,229,255,0.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+  .loading .spinner { display: block; }
+  .loading .btn-text-wrap { display: none; }
+
+  /* === RESULT === */
+  .result-box {
+    margin-top: 20px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    animation: fadeUp 0.4s ease both;
+  }
+
+  .result-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 18px;
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .result-header .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .result-body {
+    padding: 18px 18px 20px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: rgba(240,240,248,0.85);
+    border-top: 1px solid var(--border);
+  }
+
+  .result-box.danger .result-header { background: rgba(255,79,79,0.08); color: var(--danger); }
+  .result-box.danger .dot { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+  .result-box.safe .result-header { background: rgba(0,229,160,0.08); color: var(--safe); }
+  .result-box.safe .dot { background: var(--safe); box-shadow: 0 0 6px var(--safe); }
+  .result-box.warn .result-header { background: rgba(255,214,0,0.08); color: var(--warn); }
+  .result-box.warn .dot { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+  .result-box.info .result-header { background: rgba(0,229,255,0.06); color: var(--accent); }
+  .result-box.info .dot { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+  /* === TIPS === */
+  .tips-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 32px;
+    animation: fadeUp 0.6s 0.2s ease both;
+  }
+
+  .tip-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+
+  .tip-card:hover {
+    border-color: rgba(123,47,255,0.3);
+    transform: translateY(-2px);
+  }
+
+  .tip-icon {
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+
+  .tip-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.03em;
+    margin-bottom: 4px;
+  }
+
+  .tip-desc {
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* === FOOTER === */
+  .footer {
+    text-align: center;
+    margin-top: 48px;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    opacity: 0.5;
+    animation: fadeUp 0.6s 0.3s ease both;
+  }
+
+  /* === ANIMATIONS === */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 520px) {
+    .tips-row { grid-template-columns: 1fr 1fr; }
+    .tips-row .tip-card:last-child { grid-column: span 2; }
+    h1 { font-size: 2rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-wrap">
+
+  <!-- LANGUAGE BAR -->
+  <div class="lang-bar">
+    <span class="lang-label">Lang</span>
+    <button class="lang-btn active" onclick="setLang('en')">EN</button>
+    <button class="lang-btn" onclick="setLang('hi')">हि</button>
+    <button class="lang-btn" onclick="setLang('kn')">ಕ</button>
+  </div>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="badge">
+      <span class="badge-dot"></span>
+      <span data-i18n="badge">AI-Powered Security</span>
+    </div>
+    <h1 data-i18n="title">Security<br>Analyzer</h1>
+    <p class="subtitle" data-i18n="subtitle">Detect phishing, scams, and malicious links instantly using advanced AI.</p>
+  </div>
+
+  <!-- TABS -->
+  <div class="tab-row">
+    <button class="tab-btn active" id="msgTab" onclick="showTab('text')">
+      <svg class="tab-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span data-i18n="tab_msg">Message</span>
+    </button>
+    <button class="tab-btn" id="urlTabBtn" onclick="showTab('url')">
+      <svg class="tab-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      <span data-i18n="tab_url">URL / Link</span>
+    </button>
+  </div>
+
+  <!-- CARD -->
+  <div class="card">
+
+    <!-- MESSAGE SECTION -->
+    <div id="textSection" class="section active">
+      <textarea id="messageInput" data-i18n-placeholder="msg_placeholder"></textarea>
+      <button class="analyze-btn" onclick="analyzeText()">
+        <div class="spinner"></div>
+        <span class="btn-text-wrap">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <span data-i18n="btn_msg">Analyze Message</span>
+        </span>
+      </button>
+    </div>
+
+    <!-- URL SECTION -->
+    <div id="urlSection" class="section">
+      <input type="text" id="urlInput" data-i18n-placeholder="url_placeholder">
+      <button class="analyze-btn" onclick="analyzeURL()">
+        <div class="spinner"></div>
+        <span class="btn-text-wrap">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <span data-i18n="btn_url">Analyze URL</span>
+        </span>
+      </button>
+    </div>
+
+    <div id="resultBox"></div>
+  </div>
+
+  <!-- TIPS -->
+  <div class="tips-row">
+    <div class="tip-card">
+      <div class="tip-icon">🎣</div>
+      <div class="tip-title" data-i18n="tip1_title">Phishing</div>
+      <div class="tip-desc" data-i18n="tip1_desc">Fake login pages designed to steal your credentials.</div>
+    </div>
+    <div class="tip-card">
+      <div class="tip-icon">🔗</div>
+      <div class="tip-title" data-i18n="tip2_title">Malicious Links</div>
+      <div class="tip-desc" data-i18n="tip2_desc">URLs that redirect to harmful or fraudulent sites.</div>
+    </div>
+    <div class="tip-card">
+      <div class="tip-icon">⚠️</div>
+      <div class="tip-title" data-i18n="tip3_title">Scam Messages</div>
+      <div class="tip-desc" data-i18n="tip3_desc">Deceptive texts using urgency to trick victims.</div>
+    </div>
+  </div>
+
+  <div class="footer">security-analyzer · powered by claude ai</div>
+
+</div>
+
+<script>
+  // ─── i18n ────────────────────────────────────────────────
+  const i18n = {
+    en: {
+      badge: "AI-Powered Security",
+      title: "Security\nAnalyzer",
+      subtitle: "Detect phishing, scams, and malicious links instantly using advanced AI.",
+      tab_msg: "Message",
+      tab_url: "URL / Link",
+      msg_placeholder: "Paste a suspicious message here...",
+      url_placeholder: "Paste a suspicious URL or link here...",
+      btn_msg: "Analyze Message",
+      btn_url: "Analyze URL",
+      tip1_title: "Phishing",
+      tip1_desc: "Fake login pages designed to steal your credentials.",
+      tip2_title: "Malicious Links",
+      tip2_desc: "URLs that redirect to harmful or fraudulent sites.",
+      tip3_title: "Scam Messages",
+      tip3_desc: "Deceptive texts using urgency to trick victims.",
+      analyzing: "Analyzing…",
+      empty_msg: "Please paste a message to analyze.",
+      empty_url: "Please paste a URL to analyze.",
+    },
+    hi: {
+      badge: "AI सुरक्षा विश्लेषण",
+      title: "सुरक्षा\nविश्लेषक",
+      subtitle: "AI की मदद से फिशिंग, स्कैम और खतरनाक लिंक को तुरंत पहचानें।",
+      tab_msg: "संदेश",
+      tab_url: "URL / लिंक",
+      msg_placeholder: "संदिग्ध संदेश यहाँ पेस्ट करें...",
+      url_placeholder: "संदिग्ध URL यहाँ पेस्ट करें...",
+      btn_msg: "संदेश विश्लेषण करें",
+      btn_url: "URL विश्लेषण करें",
+      tip1_title: "फिशिंग",
+      tip1_desc: "नकली लॉगिन पेज जो आपकी जानकारी चुराते हैं।",
+      tip2_title: "खतरनाक लिंक",
+      tip2_desc: "ऐसे URL जो हानिकारक साइटों पर ले जाते हैं।",
+      tip3_title: "स्कैम संदेश",
+      tip3_desc: "जरूरी दिखावे से पीड़ितों को धोखा देने वाले संदेश।",
+      analyzing: "विश्लेषण हो रहा है…",
+      empty_msg: "कृपया विश्लेषण के लिए संदेश डालें।",
+      empty_url: "कृपया विश्लेषण के लिए URL डालें।",
+    },
+    kn: {
+      badge: "AI ಭದ್ರತಾ ವಿಶ್ಲೇಷಣೆ",
+      title: "ಭದ್ರತಾ\nವಿಶ್ಲೇಷಕ",
+      subtitle: "ಫಿಶಿಂಗ್, ವಂಚನೆ ಮತ್ತು ಹಾನಿಕಾರಕ ಲಿಂಕ್‌ಗಳನ್ನು AI ಮೂಲಕ ತಕ್ಷಣ ಪತ್ತೆ ಮಾಡಿ.",
+      tab_msg: "ಸಂದೇಶ",
+      tab_url: "URL / ಲಿಂಕ್",
+      msg_placeholder: "ಅನುಮಾನಾಸ್ಪದ ಸಂದೇಶವನ್ನು ಇಲ್ಲಿ ಅಂಟಿಸಿ...",
+      url_placeholder: "ಅನುಮಾನಾಸ್ಪದ URL ಅನ್ನು ಇಲ್ಲಿ ಅಂಟಿಸಿ...",
+      btn_msg: "ಸಂದೇಶ ವಿಶ್ಲೇಷಿಸಿ",
+      btn_url: "URL ವಿಶ್ಲೇಷಿಸಿ",
+      tip1_title: "ಫಿಶಿಂಗ್",
+      tip1_desc: "ನಿಮ್ಮ ರುಜುವಾತುಗಳನ್ನು ಕದಿಯಲು ನಕಲಿ ಲಾಗಿನ್ ಪುಟಗಳು.",
+      tip2_title: "ಹಾನಿಕಾರಕ ಲಿಂಕ್‌ಗಳು",
+      tip2_desc: "ಹಾನಿಕಾರಕ ಸೈಟ್‌ಗಳಿಗೆ ಮರು-ನಿರ್ದೇಶಿಸುವ URL ಗಳು.",
+      tip3_title: "ವಂಚನಾ ಸಂದೇಶಗಳು",
+      tip3_desc: "ತ್ವರಿತತೆಯ ಮೂಲಕ ಬಲಿಪಶುಗಳನ್ನು ಮೋಸಗೊಳಿಸುವ ಸಂದೇಶಗಳು.",
+      analyzing: "ವಿಶ್ಲೇಷಿಸಲಾಗುತ್ತಿದೆ…",
+      empty_msg: "ದಯವಿಟ್ಟು ವಿಶ್ಲೇಷಿಸಲು ಸಂದೇಶ ನೀಡಿ.",
+      empty_url: "ದಯವಿಟ್ಟು ವಿಶ್ಲೇಷಿಸಲು URL ನೀಡಿ.",
+    }
+  };
+
+  let currentLang = 'en';
+  let currentTab = 'text';
+
+  function t(key) { return i18n[currentLang][key] || i18n.en[key] || key; }
+
+  function setLang(lang) {
+    currentLang = lang;
+    document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.lang-btn[onclick="setLang('${lang}')"]`).classList.add('active');
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.dataset.i18n;
+      if (key === 'title') {
+        el.innerHTML = t(key).replace('\n', '<br>');
+      } else {
+        el.textContent = t(key);
+      }
+    });
+
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+      el.placeholder = t(el.dataset.i18nPlaceholder);
+    });
+  }
+
+  // ─── TABS ─────────────────────────────────────────────────
+  function showTab(tab) {
+    currentTab = tab;
+    document.getElementById('textSection').classList.toggle('active', tab === 'text');
+    document.getElementById('urlSection').classList.toggle('active', tab === 'url');
+    document.getElementById('msgTab').classList.toggle('active', tab === 'text');
+    document.getElementById('urlTabBtn').classList.toggle('active', tab === 'url');
+    document.getElementById('resultBox').innerHTML = '';
+  }
+
+  // ─── RESULT RENDER ────────────────────────────────────────
+  function showResult(text, type = 'info', label = 'Analysis') {
+    const box = document.getElementById('resultBox');
+    const dotMap = { danger:'🔴', safe:'🟢', warn:'🟡', info:'🔵' };
+    box.innerHTML = `
+      <div class="result-box ${type}">
+        <div class="result-header">
+          <span class="dot"></span>
+          ${label.toUpperCase()}
+        </div>
+        <div class="result-body">${text}</div>
+      </div>`;
+  }
+
+  // ─── ANALYZE (calls Anthropic API) ────────────────────────
+  async function callClaude(prompt) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    return data.content?.map(b => b.text || '').join('') || 'No response.';
+  }
+
+  function setLoading(btn, loading) {
+    btn.classList.toggle('loading', loading);
+  }
+
+  async function analyzeText() {
+    const input = document.getElementById('messageInput').value.trim();
+    if (!input) { showResult(t('empty_msg'), 'warn', t('tab_msg')); return; }
+    const btn = document.querySelector('#textSection .analyze-btn');
+    setLoading(btn, true);
+    showResult(t('analyzing'), 'info', t('tab_msg'));
+    try {
+      const prompt = `You are a cybersecurity expert. Analyze the following message for phishing, scams, social engineering, or malicious intent. 
+Reply in ${currentLang === 'hi' ? 'Hindi' : currentLang === 'kn' ? 'Kannada' : 'English'}.
+Give a clear verdict: SAFE, SUSPICIOUS, or DANGEROUS, followed by a brief explanation of your reasoning.
+
+Message:
+"""${input}"""`;
+      const result = await callClaude(prompt);
+      const type = /DANGEROUS|खतरनाक|ಅಪಾಯಕಾರಿ/i.test(result) ? 'danger'
+                 : /SUSPICIOUS|संदिग्ध|ಅನುಮಾನಾಸ್ಪದ/i.test(result) ? 'warn' : 'safe';
+      showResult(result.replace(/\n/g, '<br>'), type, t('tab_msg'));
+    } catch(e) {
+      showResult('Error: ' + e.message, 'danger', 'Error');
+    }
+    setLoading(btn, false);
+  }
+
+  async function analyzeURL() {
+    const input = document.getElementById('urlInput').value.trim();
+    if (!input) { showResult(t('empty_url'), 'warn', t('tab_url')); return; }
+    const btn = document.querySelector('#urlSection .analyze-btn');
+    setLoading(btn, true);
+    showResult(t('analyzing'), 'info', t('tab_url'));
+    try {
+      const prompt = `You are a cybersecurity expert. Analyze the following URL for phishing, malware, or scam indicators based on its structure, domain, and patterns.
+Reply in ${currentLang === 'hi' ? 'Hindi' : currentLang === 'kn' ? 'Kannada' : 'English'}.
+Give a verdict: SAFE, SUSPICIOUS, or DANGEROUS, followed by a concise explanation.
+
+URL: ${input}`;
+      const result = await callClaude(prompt);
+      const type = /DANGEROUS|खतरनाक|ಅಪಾಯಕಾರಿ/i.test(result) ? 'danger'
+                 : /SUSPICIOUS|संदिग्ध|ಅನುಮಾನಾಸ್ಪದ/i.test(result) ? 'warn' : 'safe';
+      showResult(result.replace(/\n/g, '<br>'), type, t('tab_url'));
+    } catch(e) {
+      showResult('Error: ' + e.message, 'danger', 'Error');
+    }
+    setLoading(btn, false);
+  }
+
+  // Init
+  setLang('en');
+</script>
+</body>
+</html>

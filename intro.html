@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="UTF-8">
+<title>AI Phishing & Social Engineering Detector</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Baloo+2:wght@700;800&display=swap" rel="stylesheet">
+
+<style>
+
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:'Inter',sans-serif;
+}
+
+body{
+
+height:100vh;
+background:#020617;
+color:white;
+overflow:hidden;
+
+}
+
+/* GRID BACKGROUND */
+
+body::before{
+
+content:"";
+position:absolute;
+width:100%;
+height:100%;
+
+background-image:
+linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+
+background-size:50px 50px;
+
+z-index:0;
+
+}
+
+/* CONTAINER */
+
+.container{
+
+position:relative;
+z-index:2;
+
+height:100vh;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+text-align:center;
+padding:40px;
+
+}
+
+/* LOGO */
+
+.logo{
+
+position:absolute;
+top:30px;
+left:40px;
+
+font-weight:700;
+font-size:20px;
+
+}
+
+.logo span{
+
+color:#22c55e;
+
+}
+
+/* HERO TITLE */
+
+h1{
+font-family: 'Baloo 2', cursive;
+font-size: 74px;
+font-weight: 800;
+line-height: 1.0;
+letter-spacing: 0.01em;
+}
+
+.highlight {
+    background: linear-gradient(90deg,#22c55e,#38bdf8);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    display: inline-block;
+    filter: drop-shadow(0 0 32px rgba(34,197,94,0.25));
+}
+
+
+/* SUBTEXT */
+
+.subtitle{
+
+max-width:700px;
+margin-top:25px;
+color:#94a3b8;
+font-size:18px;
+line-height:1.6;
+
+}
+
+/* BUTTONS */
+
+.buttons{
+
+margin-top:45px;
+display:flex;
+gap:20px;
+
+}
+
+.primary{
+
+padding:16px 38px;
+border:none;
+border-radius:40px;
+
+background:linear-gradient(90deg,#22c55e,#16a34a);
+color:white;
+
+font-weight:600;
+font-size:16px;
+
+cursor:pointer;
+
+box-shadow:0 10px 25px rgba(34,197,94,0.4);
+
+transition:0.3s;
+
+}
+
+.primary:hover{
+
+transform:scale(1.07);
+
+}
+
+.secondary{
+
+padding:16px 30px;
+border-radius:40px;
+border:1px solid #334155;
+
+background:transparent;
+color:#cbd5f5;
+
+cursor:pointer;
+
+transition:0.3s;
+
+}
+
+.secondary:hover{
+
+background:#0f172a;
+
+}
+
+/* FLOATING GRAPHICS */
+
+.icon{
+
+position:absolute;
+font-size:26px;
+opacity:0.3;
+
+animation:float 6s infinite ease-in-out;
+
+}
+
+.icon1{top:20%;left:10%}
+.icon2{top:70%;left:20%}
+.icon3{top:30%;right:15%}
+.icon4{bottom:20%;right:10%}
+
+@keyframes float{
+
+0%{transform:translateY(0)}
+50%{transform:translateY(-15px)}
+100%{transform:translateY(0)}
+
+}
+
+/* VERSION TAG */
+
+.tag{
+
+position:absolute;
+top:120px;
+
+background:#0f172a;
+border:1px solid #1e293b;
+
+padding:6px 14px;
+border-radius:20px;
+
+font-size:14px;
+color:#94a3b8;
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="logo">
+AI <span>Secure</span>
+</div>
+
+<div class="container">
+
+<div class="tag">
+🟢 AI Security Model v1.0 Live
+</div>
+
+<h1>
+<span class="highlight">PhishNet</span>
+</h1>
+
+<p class="subtitle">
+Our AI detects phishing links and social engineering messages by
+analyzing manipulation tactics, suspicious URLs, and behavioral patterns
+to keep users safe from cyber threats.
+</p>
+
+<div class="buttons">
+
+<button class="primary" onclick="startApp()">
+Start Security Scan
+</button>
+
+<button class="secondary">
+How It Works
+</button>
+
+</div>
+
+</div>
+
+<!-- Floating graphics -->
+
+<div class="icon icon1">🛡</div>
+<div class="icon icon2">🔍</div>
+<div class="icon icon3">⚠</div>
+<div class="icon icon4">🔐</div>
+
+<script>
+
+function startApp(){
+
+window.location.href="index.html"
+
+}
+
+</script>
+
+</body>
+</html>

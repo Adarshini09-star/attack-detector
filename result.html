@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="UTF-8">
+<title>Security Analysis Result</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700&display=swap" rel="stylesheet">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+margin:0;
+background:#020617;
+color:white;
+font-family:'Inter',sans-serif;
+}
+
+.container{
+max-width:1100px;
+margin:auto;
+padding:40px;
+text-align:center;
+}
+
+/* TITLE FONT */
+
+h1{
+font-family:'Orbitron',sans-serif;
+font-size:36px;
+letter-spacing:2px;
+color:#22c55e;
+text-shadow:0 0 10px #22c55e;
+margin-bottom:30px;
+}
+
+.dashboard{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:30px;
+margin-top:30px;
+}
+
+.card{
+background:#0f172a;
+padding:25px;
+border-radius:12px;
+box-shadow:0 0 15px rgba(0,0,0,0.6);
+}
+
+.card h3{
+margin-bottom:15px;
+}
+
+canvas{
+max-width:300px;
+margin:auto;
+}
+
+ul{
+text-align:left;
+line-height:1.8;
+}
+
+.high{color:#ef4444;font-weight:700;}
+.medium{color:#f59e0b;font-weight:700;}
+.low{color:#22c55e;font-weight:700;}
+
+.backBtn{
+margin-top:40px;
+padding:14px 30px;
+background:#3b82f6;
+border:none;
+border-radius:8px;
+color:white;
+font-weight:600;
+cursor:pointer;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Security Analysis Report</h1>
+
+<div class="dashboard">
+
+<!-- Risk Meter -->
+
+<div class="card">
+
+<h3>Risk Meter</h3>
+
+<canvas id="riskChart"></canvas>
+
+<p id="riskText"></p>
+
+</div>
+
+
+<!-- Attack Indicators -->
+
+<div class="card">
+
+<h3>Attack Indicators</h3>
+
+<canvas id="attackChart"></canvas>
+
+</div>
+
+
+<!-- Explanation -->
+
+<div class="card">
+
+<h3>Explanation</h3>
+
+<p id="explanation"></p>
+
+</div>
+
+
+<!-- Safety Suggestions -->
+
+<div class="card">
+
+<h3>Safety Suggestions</h3>
+
+<ul id="safety"></ul>
+
+</div>
+
+</div>
+
+<button class="backBtn" onclick="goBack()">Analyze Another</button>
+
+</div>
+
+
+<script>
+
+window.onload = function(){
+
+/* GET RESULT DATA */
+
+let data = JSON.parse(localStorage.getItem("analysisResult"));
+
+/* fallback demo data */
+
+if(!data){
+data={
+risk_level:"High",
+score:80,
+prediction:"Social Engineering",
+tactics:["Urgency","Authority","Fear"]
+};
+}
+
+
+/* RISK METER */
+
+new Chart(document.getElementById("riskChart"),{
+
+type:'doughnut',
+
+data:{
+datasets:[{
+data:[data.score,100-data.score],
+backgroundColor:["#ef4444","#1e293b"],
+borderWidth:0
+}]
+},
+
+options:{
+cutout:'70%',
+plugins:{legend:{display:false}}
+}
+
+});
+
+
+document.getElementById("riskText").innerHTML =
+`Risk Level: <span class="${data.risk_level.toLowerCase()}">${data.risk_level}</span>`;
+
+
+/* ATTACK ANALYSIS */
+
+let indicators = data.tactics || data.issues || [];
+
+new Chart(document.getElementById("attackChart"),{
+
+type:'bar',
+
+data:{
+labels:indicators,
+datasets:[{
+data:indicators.map(()=>1),
+backgroundColor:"#22c55e"
+}]
+},
+
+options:{
+scales:{y:{display:false}},
+plugins:{legend:{display:false}}
+}
+
+});
+
+
+/* EXPLANATION */
+
+document.getElementById("explanation").innerText =
+"This message or URL contains patterns commonly found in phishing or social engineering attacks. Attackers often use urgency, authority impersonation, or fear tactics to manipulate users into clicking malicious links or revealing sensitive information.";
+
+
+/* SAFETY SUGGESTIONS */
+
+document.getElementById("safety").innerHTML =
+
+"<li>Do not click links from unknown or suspicious messages.</li>"+
+"<li>Verify the sender identity before responding.</li>"+
+"<li>Never share passwords, OTPs, or banking details.</li>"+
+"<li>Always access services through official websites.</li>"+
+"<li>Report suspicious messages to your organization or service provider.</li>";
+
+}
+
+
+/* BACK BUTTON */
+
+function goBack(){
+window.location.href="index.html";
+}
+
+</script>
+
+</body>
+</html>
