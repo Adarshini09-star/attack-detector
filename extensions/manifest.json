@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "AI Social Engineering Detector",
+  "version": "1.0",
+  "description": "Detects phishing and social engineering messages on Gmail and WhatsApp Web",
+  
+  "permissions": [
+    "activeTab"
+  ],
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mail.google.com/*",
+        "https://web.whatsapp.com/*"
+      ],
+      "js": ["content.js"]
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
