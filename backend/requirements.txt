@@ -1,0 +1,6 @@
+## File 4 — `backend/requirements.txt`
+```
+fastapi
+uvicorn
+scikit-learn
+pydantic
