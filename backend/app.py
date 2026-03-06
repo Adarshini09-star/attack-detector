@@ -1,280 +1,343 @@
 """
-backend/app.py — PhishNet v3.1
-Smart detection: avoids false positives on real bank alerts, OTPs, UPI transactions
+PhishNet API
+ML + Rule-based + Claude AI + Screenshot OCR
 """
 
-import os, re, pickle, pathlib
-from typing import Optional
-from fastapi import FastAPI, HTTPException
+import os
+import re
+import time
+import base64
+import pickle
+import pathlib
+from typing import List, Optional
+
+from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-# ── Claude AI ─────────────────────────────────
+
+# ================================
+# Claude AI Setup
+# ================================
+
 try:
     import anthropic
-    _ai_client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+
+    _ai_client = anthropic.Anthropic(
+        api_key=os.environ.get("ANTHROPIC_API_KEY", "")
+    )
+
     _AI_AVAILABLE = bool(os.environ.get("ANTHROPIC_API_KEY"))
-except ImportError:
+
+except Exception:
     _ai_client = None
     _AI_AVAILABLE = False
 
-# ── ML Models ─────────────────────────────────
+
+# ================================
+# Load ML Models
+# ================================
+
 ROOT = pathlib.Path(__file__).parent.parent
 
-def _load_pickle(path):
+
+def load_pickle(path):
     with open(path, "rb") as f:
         return pickle.load(f)
 
+
 try:
-    TEXT_MODEL = _load_pickle(ROOT / "ml" / "text_model.pkl")
-    VECTORIZER = _load_pickle(ROOT / "ml" / "vectorizer.pkl")
-    _ML_READY  = True
-    print("✅ ML models loaded")
+    TEXT_MODEL = load_pickle(ROOT / "ml" / "text_model.pkl")
+    VECTORIZER = load_pickle(ROOT / "ml" / "vectorizer.pkl")
+    ML_READY = True
+    print("ML model loaded")
+
 except Exception as e:
-    TEXT_MODEL = VECTORIZER = None
-    _ML_READY  = False
-    print(f"⚠️  ML models not found: {e}")
+    TEXT_MODEL = None
+    VECTORIZER = None
+    ML_READY = False
+    print("ML model not found:", e)
 
-import sys
-sys.path.insert(0, str(ROOT))
-from url_detection.url_features import score_url
 
-app = FastAPI(title="PhishNet API", version="3.1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# ================================
+# FastAPI Setup
+# ================================
+
+app = FastAPI(title="PhishNet API", version="1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 try:
-    app.mount("/app", StaticFiles(directory=str(ROOT / "frontend"), html=True), name="frontend")
+    app.mount("/app", StaticFiles(directory=str(ROOT / "frontend"), html=True))
 except:
     pass
 
-# ── Schemas ───────────────────────────────────
+
+# ================================
+# Request Schemas
+# ================================
+
 class TextRequest(BaseModel):
     message: str
     lang: str = "en"
     use_ai: bool = True
+
 
 class URLRequest(BaseModel):
     url: str
     lang: str = "en"
     use_ai: bool = True
 
-# ── Constants ─────────────────────────────────
-LANG_MAP = {"en": "English", "hi": "Hindi", "kn": "Kannada"}
 
-SAFETY_TIPS = [
-    "Do not click links from unknown or suspicious messages.",
-    "Verify the sender's identity before responding.",
-    "Never share passwords, OTPs, or banking details with anyone who asks.",
-    "Always access services through official apps or websites.",
-    "Report suspicious messages to your bank or service provider.",
-]
+# ================================
+# Utility Functions
+# ================================
 
-# ── Trusted sender patterns ───────────────────
-TRUSTED_DOMAINS = [
-    r'alerts?\.(hdfc|icici|sbi|axis|kotak|yes|pnb|canara|indusind)bank',
-    r'(hdfc|icici|sbi|axis|kotak)bank\.com',
-    r'noreply@paytm\.com', r'alerts@phonepe',
-    r'@(visa|mastercard|rupay)\.com',
-]
-TRUSTED_RE = re.compile('|'.join(TRUSTED_DOMAINS), re.I)
+def risk_bucket(score):
 
-# ── Legitimate transaction patterns ──────────
-LEGIT_PATTERNS = [
-    re.compile(r'Rs\.?\s*\d+.*(?:debited|credited|transferred)', re.I),
-    re.compile(r'UPI\s*(?:transaction|txn|ref)\s*(?:no|number|id)?\.?\s*[:#]?\s*\d{6,}', re.I),
-    re.compile(r'(?:debited|credited)\s*from\s*(?:account|a\/c|VPA)', re.I),
-    re.compile(r'OTP\s*(?:for|is|:)\s*\d{4,8}', re.I),
-    re.compile(r'\d{4,8}\s*is\s*(?:your|the)\s*(?:otp|one.time)', re.I),
-    re.compile(r'available\s*balance\s*(?:is|:)\s*Rs', re.I),
-    re.compile(r'a\/c\s*(?:no\.?)?\s*[xX*]+\d{4}', re.I),
-    re.compile(r'NEFT|RTGS|IMPS|NACH', re.I),
-]
+    if score >= 60:
+        return "High"
 
-# ── Strong phishing signals ───────────────────
-STRONG_PHISHING = [
-    re.compile(r'click\s*(?:here|this\s*link|now)\s*(?:to\s*)?(?:verify|confirm|update|login|reset|claim)', re.I),
-    re.compile(r'your\s*account\s*(?:will\s*be|has\s*been)\s*(?:suspended|blocked|terminated|closed|deleted)', re.I),
-    re.compile(r'(?:avoid|prevent)\s*(?:arrest|penalty|legal\s*action)\s*(?:by\s*)?(?:clicking|paying|calling)', re.I),
-    re.compile(r'you\s*(?:have\s*)?(?:won|been\s*selected)\s*(?:a\s*)?\$[\d,]+', re.I),
-    re.compile(r'claim\s*your\s*(?:prize|reward|gift|winnings)\s*(?:now|immediately)', re.I),
-    re.compile(r'your\s*(?:password|credentials)\s*(?:has\s*been\s*compromised|were\s*exposed)', re.I),
-    re.compile(r'transfer\s*funds?\s*of\s*\$[\d,]+\s*(?:million|thousand)', re.I),
-    re.compile(r'your\s*(?:computer|device)\s*has\s*a?\s*virus', re.I),
-    re.compile(r'call\s*(?:microsoft|apple|google)\s*support\s*(?:immediately|now)', re.I),
-]
+    if score >= 35:
+        return "Medium"
 
-# ── Tactic detection (context-aware) ─────────
-TACTICS = {
-    r"urgent|act fast|deadline|expires? (?:today|tonight|now)|24.hour": "Urgency",
-    r"suspend|block|arrest|penalty|fine|lose access|terminated|legal action": "Fear / Threat",
-    r"won|winner|prize|gift|reward|claim|congratulation|lucky": "Reward Bait",
-    r"click here.*(?:verify|login|reset)|credential": "Credential Harvesting",
-    r"password|otp|pin|cvv|ssn": "Sensitive Data Request",
-}
-# Whitelist: don't count tactic if these are present
-TACTIC_WHITELIST = re.compile(
-    r'Rs\.?\s*\d+|debited|credited|UPI|transaction|VPA|balance|otp is|otp for|\d{4,8}\s*is your', re.I
-)
-
-def detect_tactics(text: str) -> list:
-    tl = text.lower()
-    found = []
-    is_legit_context = TACTIC_WHITELIST.search(text)
-    for pattern, label in TACTICS.items():
-        if re.search(pattern, tl, re.I):
-            if is_legit_context and label in ('Urgency', 'Sensitive Data Request'):
-                continue  # skip in legit context
-            found.append(label)
-    return found if found else ["No clear tactics detected"]
-
-def is_legitimate_message(text: str) -> bool:
-    return any(p.search(text) for p in LEGIT_PATTERNS)
-
-def has_strong_phishing(text: str) -> bool:
-    return any(p.search(text) for p in STRONG_PHISHING)
-
-def bucket(score: float) -> str:
-    if score >= 60: return "High"
-    if score >= 35: return "Medium"
     return "Low"
 
-# ── Claude AI with smart prompt ───────────────
-def _ai_explain(prompt: str) -> Optional[str]:
-    if not _AI_AVAILABLE or not _ai_client:
-        return None
-    try:
-        resp = _ai_client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=300,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return resp.content[0].text.strip()
-    except Exception as e:
-        print(f"AI error: {e}")
-        return None
 
-# ── Routes ────────────────────────────────────
+# ================================
+# Claude Vision OCR
+# ================================
+
+def ai_extract_text(img_b64, media_type):
+
+    if not _AI_AVAILABLE:
+        raise HTTPException(503, "Claude AI not available")
+
+    resp = _ai_client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1000,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": img_b64
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": "Extract all visible text from this screenshot exactly as written."
+                    }
+                ]
+            }
+        ]
+    )
+
+    return resp.content[0].text.strip()
+
+
+# ================================
+# Root
+# ================================
+
 @app.get("/")
 def root():
-    return {"status": "PhishNet API v3.1", "ml_ready": _ML_READY, "ai_ready": _AI_AVAILABLE}
 
-@app.get("/health")
-def health():
-    return {"status": "ok", "ml": _ML_READY, "ai": _AI_AVAILABLE}
+    return {
+        "status": "PhishNet API running",
+        "ml_ready": ML_READY,
+        "ai_ready": _AI_AVAILABLE
+    }
+
+
+# ================================
+# TEXT ANALYSIS
+# ================================
 
 @app.post("/analyze-text")
 def analyze_text(req: TextRequest):
+
     msg = req.message.strip()
+
     if not msg:
-        raise HTTPException(400, "Message cannot be empty.")
+        raise HTTPException(400, "Message cannot be empty")
 
-    # ── Smart pre-checks ──────────────────────
-    legit    = is_legitimate_message(msg)
-    strong_p = has_strong_phishing(msg)
-
-    # ── ML Model prediction ───────────────────
+    # ML prediction
     ml_score = 50
     ml_label = "Unknown"
-    ml_confidence = None
 
-    if _ML_READY:
-        vec   = VECTORIZER.transform([msg])
-        prob  = TEXT_MODEL.predict_proba(vec)[0]
-        phish = float(prob[1])
+    if ML_READY:
 
-        # Correct for ML bias on legitimate bank messages:
-        # The training data (SMS spam) flags "bank", "account", "verify" as spam
-        # but real bank alerts use these words legitimately
-        if legit and not strong_p:
-            phish = min(phish, 0.25)  # cap at 25% for confirmed legitimate messages
+        vec = VECTORIZER.transform([msg])
 
-        ml_score      = round(phish * 100, 1)
-        ml_label      = "Social Engineering" if phish >= 0.5 else "Legitimate Message"
-        ml_confidence = round(max(prob) * 100, 1)
+        prob = TEXT_MODEL.predict_proba(vec)[0][1]
 
-    # ── Tactic detection ──────────────────────
-    tactics      = detect_tactics(msg)
-    clean_tactics = [t for t in tactics if t != "No clear tactics detected"]
+        ml_score = round(prob * 100, 1)
 
-    # Tactic bonus — only apply for non-legitimate messages
-    tactic_bonus = 0 if (legit and not strong_p) else min(len(clean_tactics) * 7, 20)
+        ml_label = "Social Engineering" if prob >= 0.5 else "Legitimate"
 
-    # ── Final score ───────────────────────────
-    if strong_p:
-        final_score = max(ml_score + tactic_bonus, 65)   # always High if strong signal
-    elif legit:
-        final_score = min(ml_score + tactic_bonus, 28)   # always Low if legit
-    else:
-        final_score = ml_score + tactic_bonus
+    # Rule checks
+    signals = []
 
-    final_score = min(round(final_score), 100)
-    risk_level  = bucket(final_score)
+    if re.search(r'urgent|immediately|act now', msg, re.I):
+        signals.append("Urgency Pressure")
 
-    # ── Explanation ───────────────────────────
-    if legit and not strong_p:
-        explanation = "This appears to be a legitimate transactional notification from a financial institution. No deceptive intent detected."
-    else:
-        explanation = "This message contains patterns associated with social engineering attacks."
+    if re.search(r'click here|verify|login|update account', msg, re.I):
+        signals.append("Credential Harvesting")
+
+    if re.search(r'won|lottery|prize', msg, re.I):
+        signals.append("Prize Scam")
+
+    rule_score = len(signals) * 10
+
+    final_score = min(round(ml_score * 0.6 + rule_score), 100)
+
+    risk = risk_bucket(final_score)
+
+    explanation = "This message contains patterns associated with phishing."
 
     if req.use_ai and _AI_AVAILABLE:
-        lang = LANG_MAP.get(req.lang, "English")
-        context_note = ""
-        if legit:
-            context_note = "NOTE: This message matches a legitimate bank transaction format. Only flag if it additionally tries to trick the user into clicking a link or sharing credentials. "
-        ai_resp = _ai_explain(
-            f"You are a cybersecurity expert. {context_note}"
-            f"In 2 sentences, explain why this message is {risk_level.lower()} risk "
-            f"for phishing or social engineering. Respond in {lang}. "
-            f"Message: \"{msg[:400]}\""
-        )
-        if ai_resp:
-            explanation = ai_resp
+
+        ai_prompt = f"""
+Explain in 2 sentences why this message may be phishing:
+
+{msg}
+"""
+
+        try:
+
+            resp = _ai_client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=200,
+                messages=[{"role": "user", "content": ai_prompt}]
+            )
+
+            explanation = resp.content[0].text.strip()
+
+        except:
+            pass
 
     return {
-        "risk_level":    risk_level,
-        "score":         final_score,
-        "prediction":    ml_label,
-        "ml_score":      ml_score,
-        "ml_confidence": ml_confidence,
-        "tactics":       tactics,
-        "explanation":   explanation,
-        "safety_tips":   SAFETY_TIPS,
-        "ml_used":       _ML_READY,
-        "ai_used":       _AI_AVAILABLE and req.use_ai,
-        "is_legitimate": legit and not strong_p,
+        "risk_level": risk,
+        "score": final_score,
+        "prediction": ml_label,
+        "signals": signals,
+        "ml_score": ml_score,
+        "explanation": explanation
     }
+
+
+# ================================
+# URL ANALYSIS
+# ================================
 
 @app.post("/analyze-url")
 def analyze_url(req: URLRequest):
+
     url = req.url.strip()
+
     if not url:
-        raise HTTPException(400, "URL cannot be empty.")
+        raise HTTPException(400, "URL cannot be empty")
 
-    result     = score_url(url)
-    risk_level = result["risk_level"]
-    score      = result["score"]
-    issues     = result["issues"]
-    prediction = "Phishing URL" if risk_level=="High" else "Suspicious URL" if risk_level=="Medium" else "Likely Safe URL"
+    score = 0
+    issues = []
 
-    explanation = "This URL contains structural patterns commonly found in phishing attacks."
-    if req.use_ai and _AI_AVAILABLE:
-        lang       = LANG_MAP.get(req.lang, "English")
-        issues_str = ", ".join(issues[:4])
-        ai_resp    = _ai_explain(
-            f"You are a cybersecurity expert. In 2 sentences, explain why this URL is "
-            f"{risk_level.lower()} risk. Issues found: {issues_str}. "
-            f"URL: {url}. Respond in {lang}."
-        )
-        if ai_resp:
-            explanation = ai_resp
+    if len(url) > 70:
+        score += 20
+        issues.append("Long URL")
+
+    if "@" in url:
+        score += 25
+        issues.append("Contains @ symbol")
+
+    if re.search(r'\d+\.\d+\.\d+\.\d+', url):
+        score += 30
+        issues.append("IP address in URL")
+
+    if re.search(r'login|verify|secure|account', url, re.I):
+        score += 15
+        issues.append("Suspicious keywords")
+
+    score = min(score, 100)
+
+    risk = risk_bucket(score)
 
     return {
-        "risk_level":  risk_level,
-        "score":       score,
-        "prediction":  prediction,
-        "issues":      issues,
-        "explanation": explanation,
-        "safety_tips": SAFETY_TIPS,
-        "ai_used":     _AI_AVAILABLE and req.use_ai,
+        "risk_level": risk,
+        "score": score,
+        "issues": issues
+    }
+
+
+# ================================
+# SCREENSHOT ANALYSIS
+# ================================
+
+@app.post("/analyze-screenshot")
+async def analyze_screenshot(file: UploadFile = File(...)):
+
+    start = time.time()
+
+    contents = await file.read()
+
+    media_type = file.content_type or "image/jpeg"
+
+    img_b64 = base64.b64encode(contents).decode("utf-8")
+
+    try:
+
+        extracted_text = ai_extract_text(img_b64, media_type)
+
+    except Exception as e:
+
+        raise HTTPException(500, f"OCR failed: {str(e)}")
+
+    if not extracted_text:
+
+        return {
+            "risk_level": "Low",
+            "score": 0,
+            "extracted_text": "",
+            "explanation": "No text found in screenshot"
+        }
+
+    result = analyze_text(TextRequest(message=extracted_text))
+
+    elapsed = round((time.time() - start) * 1000)
+
+    return {
+        "extracted_text": extracted_text,
+        "analysis": result,
+        "elapsed_ms": elapsed
+    }
+
+
+# ================================
+# OCR ONLY
+# ================================
+
+@app.post("/ocr")
+async def ocr(file: UploadFile = File(...)):
+
+    contents = await file.read()
+
+    media_type = file.content_type or "image/jpeg"
+
+    img_b64 = base64.b64encode(contents).decode("utf-8")
+
+    text = ai_extract_text(img_b64, media_type)
+
+    return {
+        "text": text,
+        "char_count": len(text)
     }

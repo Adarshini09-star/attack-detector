@@ -1,6 +1,7 @@
 fastapi
-uvicorn
+uvicorn[standard]
 scikit-learn
 numpy
 anthropic
 python-multipart
+python-dotenv
