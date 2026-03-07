@@ -1,897 +1,1433 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>PhishNet — Threat Intelligence</title>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PhishNet — AI Threat Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #050810;
-    --surface: #0b0f1a;
-    --panel: #0f1423;
-    --border: rgba(0,255,200,0.12);
-    --cyan: #00ffc8;
-    --purple: #7b61ff;
-    --red: #ff4466;
-    --yellow: #ffd166;
-    --text: #e2e8f0;
-    --muted: #64748b;
-    --low: #00ffc8;
-    --medium: #ffd166;
-    --high: #ff4466;
+    --bg: #050d12;
+    --bg2: #091520;
+    --bg3: #0d1f2d;
+    --panel: #0a1a26;
+    --border: #0e3048;
+    --cyan: #00e5ff;
+    --cyan2: #00b8d4;
+    --green: #00e676;
+    --yellow: #ffea00;
+    --red: #ff1744;
+    --orange: #ff6d00;
+    --text: #cce7f0;
+    --muted: #4a7a95;
+    --font-mono: 'Space Mono', monospace;
+    --font-display: 'Syne', sans-serif;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  html { scroll-behavior: smooth; }
+
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-display);
     min-height: 100vh;
     overflow-x: hidden;
   }
 
-  /* ── GRID BACKGROUND ── */
+  /* ── SCANLINE OVERLAY ── */
   body::before {
     content: '';
     position: fixed;
     inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,229,255,0.015) 2px,
+      rgba(0,229,255,0.015) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── GRID BG ── */
+  .grid-bg {
+    position: fixed;
+    inset: 0;
     background-image:
-      linear-gradient(rgba(0,255,200,0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,255,200,0.03) 1px, transparent 1px);
+      linear-gradient(rgba(0,229,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.04) 1px, transparent 1px);
     background-size: 40px 40px;
     pointer-events: none;
     z-index: 0;
   }
 
-  body::after {
-    content: '';
-    position: fixed;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(ellipse at 30% 20%, rgba(123,97,255,0.08) 0%, transparent 50%),
-                radial-gradient(ellipse at 70% 80%, rgba(0,255,200,0.06) 0%, transparent 50%);
+  /* ── PAGES ── */
+  .page { display: none; position: relative; z-index: 1; }
+  .page.active { display: block; }
+
+  /* ══════════════════════════════════════
+     LANDING PAGE
+  ══════════════════════════════════════ */
+  #landingPage {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Ticker */
+  .ticker-wrap {
+    background: rgba(255,23,68,0.12);
+    border-bottom: 1px solid rgba(255,23,68,0.3);
+    padding: 8px 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .ticker-content {
+    display: inline-block;
+    animation: ticker 30s linear infinite;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #ff6b6b;
+    letter-spacing: 1px;
+  }
+  @keyframes ticker {
+    0%   { transform: translateX(100vw); }
+    100% { transform: translateX(-100%); }
+  }
+
+  /* Nav */
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 48px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(5,13,18,0.9);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.5px;
+    color: var(--cyan);
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--cyan);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    color: var(--bg);
+    box-shadow: 0 0 20px rgba(0,229,255,0.4);
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--green);
+    padding: 6px 14px;
+    border: 1px solid rgba(0,230,118,0.3);
+    border-radius: 20px;
+    background: rgba(0,230,118,0.06);
+  }
+  .pulse-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+    box-shadow: 0 0 6px var(--green);
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  /* Hero */
+  .hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 80px 24px 60px;
+    position: relative;
+  }
+
+  .hero-glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 400px;
+    background: radial-gradient(ellipse, rgba(0,229,255,0.08) 0%, transparent 70%);
     pointer-events: none;
-    z-index: 0;
-    animation: aurora 12s ease-in-out infinite alternate;
   }
 
-  @keyframes aurora {
-    0% { transform: translate(0, 0) rotate(0deg); }
-    100% { transform: translate(2%, 1%) rotate(1deg); }
-  }
-
-  .wrapper { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 48px 24px 80px; }
-
-  /* ── HEADER ── */
-  header { text-align: center; margin-bottom: 56px; }
-
-  .logo-badge {
-    display: inline-flex; align-items: center; gap: 8px;
-    background: rgba(0,255,200,0.06); border: 1px solid rgba(0,255,200,0.2);
-    border-radius: 100px; padding: 6px 16px; margin-bottom: 20px;
-    font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cyan);
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .logo-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); animation: blink 1.4s infinite; }
-  @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
-
-  h1 {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: clamp(52px, 9vw, 88px);
-    font-weight: 900;
-    line-height: 0.92;
-    letter-spacing: -0.02em;
+  .hero-tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--cyan);
     text-transform: uppercase;
-    background: linear-gradient(135deg, #ffffff 30%, var(--cyan) 70%, var(--purple) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: 16px;
+    margin-bottom: 24px;
+    opacity: 0.8;
   }
 
-  .subtitle { color: var(--muted); font-size: 14px; font-weight: 300; letter-spacing: 0.05em; }
-
-  /* ── TABS ── */
-  .tabs {
-    display: flex; gap: 4px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px; padding: 4px;
-    margin-bottom: 28px;
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(52px, 8vw, 96px);
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -3px;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+  .hero-title span {
+    color: var(--cyan);
+    text-shadow: 0 0 40px rgba(0,229,255,0.5);
   }
 
-  .tab-btn {
-    flex: 1; padding: 12px 8px;
-    background: transparent; border: none;
-    border-radius: 10px; cursor: pointer;
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 13px; font-weight: 500;
+  .hero-subtitle {
+    font-family: var(--font-mono);
+    font-size: 13px;
     color: var(--muted);
-    transition: all 0.2s;
-    letter-spacing: 0.04em;
-    display: flex; align-items: center; justify-content: center; gap: 7px;
+    margin: 24px 0 48px;
+    letter-spacing: 1px;
+    max-width: 480px;
   }
 
-  .tab-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
-  .tab-btn.active { background: rgba(0,255,200,0.1); color: var(--cyan); border: 1px solid rgba(0,255,200,0.2); }
+  /* Action cards */
+  .action-cards {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 64px;
+  }
 
-  .tab-btn svg { width: 15px; height: 15px; }
-
-  /* ── PANEL ── */
-  .panel {
+  .action-card {
+    cursor: pointer;
+    padding: 20px 28px;
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 18px;
-    padding: 32px;
+    border-radius: 12px;
+    min-width: 180px;
+    text-align: center;
+    transition: all 0.2s ease;
     position: relative;
     overflow: hidden;
   }
-
-  .panel::before {
+  .action-card::before {
     content: '';
-    position: absolute; top: 0; left: 0; right: 0; height: 1px;
-    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0,229,255,0.05), transparent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .action-card:hover { border-color: var(--cyan); transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,229,255,0.15); }
+  .action-card:hover::before { opacity: 1; }
+  .action-card .card-icon { font-size: 28px; margin-bottom: 10px; }
+  .action-card .card-label { font-size: 13px; font-weight: 700; color: var(--cyan); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+  .action-card .card-desc { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    justify-content: center;
+    gap: 48px;
+    padding: 32px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    flex-wrap: wrap;
+  }
+  .stat-item { text-align: center; }
+  .stat-number {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--cyan);
+    display: block;
+    text-shadow: 0 0 20px rgba(0,229,255,0.3);
+  }
+  .stat-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  /* How it works */
+  .how-it-works {
+    padding: 72px 48px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--cyan);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    opacity: 0.7;
+  }
+  .section-title {
+    font-size: 36px;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 48px;
+    letter-spacing: -1px;
+  }
+
+  .steps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 24px;
+  }
+  .step-card {
+    padding: 28px 24px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .step-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--cyan), transparent);
+  }
+  .step-num {
+    font-family: var(--font-display);
+    font-size: 48px;
+    font-weight: 800;
+    color: rgba(0,229,255,0.1);
+    line-height: 1;
+    margin-bottom: 12px;
+  }
+  .step-title { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .step-desc { font-size: 12px; color: var(--muted); line-height: 1.6; font-family: var(--font-mono); }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ══════════════════════════════════════
+     ANALYZER PAGE
+  ══════════════════════════════════════ */
+  #analyzerPage {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .analyzer-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(5,13,18,0.95);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .back-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: all 0.2s;
+  }
+  .back-btn:hover { color: var(--cyan); border-color: var(--cyan); }
+
+  .tab-row {
+    display: flex;
+    gap: 4px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+  }
+  .tab-btn {
+    cursor: pointer;
+    padding: 9px 20px;
+    border-radius: 7px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tab-btn.active {
+    background: var(--cyan);
+    color: var(--bg);
+    font-weight: 700;
+  }
+  .tab-btn:not(.active):hover { color: var(--cyan); background: rgba(0,229,255,0.06); }
+
+  /* Analyzer layout */
+  .analyzer-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 32px;
+    gap: 24px;
+  }
+
+  /* Input panel */
+  .input-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg3);
+  }
+  .panel-title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .panel-icon { font-size: 18px; }
+
+  .panel-body { padding: 24px; flex: 1; display: flex; flex-direction: column; gap: 16px; }
+
+  /* Tabs content */
+  .tab-content { display: none; flex-direction: column; gap: 16px; flex: 1; }
+  .tab-content.active { display: flex; }
+
+  textarea, input[type="text"] {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    resize: none;
+    transition: border-color 0.2s;
+    line-height: 1.6;
+  }
+  textarea:focus, input[type="text"]:focus {
+    outline: none;
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 3px rgba(0,229,255,0.08);
+  }
+  textarea { min-height: 160px; }
+
+  /* Scan btn */
+  .scan-btn {
+    padding: 14px 28px;
+    background: var(--cyan);
+    color: var(--bg);
+    border: none;
+    border-radius: 10px;
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .scan-btn::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.4s;
+  }
+  .scan-btn:hover { background: var(--cyan2); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,229,255,0.3); }
+  .scan-btn:hover::before { left: 100%; }
+  .scan-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* Screenshot drop zone */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex: 1;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--cyan); background: rgba(0,229,255,0.04); }
+  .drop-icon { font-size: 40px; opacity: 0.5; }
+  .drop-label { font-size: 14px; color: var(--muted); }
+  .drop-hint { font-family: var(--font-mono); font-size: 11px; color: var(--muted); opacity: 0.6; }
+
+  .preview-wrap {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    flex: 1;
+    display: none;
+  }
+  .preview-wrap img { width: 100%; max-height: 240px; object-fit: cover; display: block; }
+  .remove-img {
+    position: absolute;
+    top: 10px; right: 10px;
+    background: rgba(255,23,68,0.85);
+    border: none;
+    color: #fff;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .remove-img:hover { background: var(--red); }
+
+  /* Quick test examples */
+  .examples-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .example-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .chip {
+    padding: 5px 11px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .chip:hover { border-color: var(--cyan); color: var(--cyan); background: rgba(0,229,255,0.04); }
+  .chip.danger { border-color: rgba(255,23,68,0.3); color: #ff6b6b; }
+  .chip.danger:hover { border-color: var(--red); color: var(--red); background: rgba(255,23,68,0.05); }
+
+  /* ── RESULTS PANEL ── */
+  .result-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .result-idle {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 48px;
+    text-align: center;
     opacity: 0.4;
   }
+  .result-idle .idle-icon { font-size: 48px; }
+  .result-idle p { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
 
-  /* scan line */
-  .panel::after {
-    content: '';
-    position: absolute; inset: 0;
-    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,200,0.005) 2px, rgba(0,255,200,0.005) 4px);
-    pointer-events: none;
-  }
+  .result-content { display: none; flex-direction: column; flex: 1; }
+  .result-content.visible { display: flex; }
 
-  .section { display: none; }
-  .section.active { display: block; }
-
-  /* ── LABELS ── */
-  label.field-label {
-    display: block; font-size: 11px; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--cyan); margin-bottom: 8px;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  /* ── TEXTAREA / INPUT ── */
-  textarea, input[type="text"] {
-    width: 100%; background: var(--surface);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 10px; padding: 14px 16px;
-    color: var(--text); font-family: 'Space Grotesk', sans-serif;
-    font-size: 14px; resize: vertical; outline: none;
-    transition: border-color 0.2s;
-  }
-
-  textarea:focus, input[type="text"]:focus {
-    border-color: rgba(0,255,200,0.35);
-    box-shadow: 0 0 0 3px rgba(0,255,200,0.06);
-  }
-
-  textarea { min-height: 120px; }
-
-  /* ── DROP ZONE ── */
-  .drop-zone {
-    border: 2px dashed rgba(0,255,200,0.2);
-    border-radius: 14px; padding: 40px 24px;
-    text-align: center; cursor: pointer;
-    transition: all 0.25s; background: rgba(0,255,200,0.02);
+  /* Risk header */
+  .risk-header {
+    padding: 28px 28px 20px;
+    border-bottom: 1px solid var(--border);
     position: relative;
+    overflow: hidden;
+  }
+  .risk-header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.07;
+  }
+  .risk-header.high::before { background: var(--red); }
+  .risk-header.medium::before { background: var(--orange); }
+  .risk-header.low::before { background: var(--green); }
+
+  .risk-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+  }
+  .risk-badge.high { background: rgba(255,23,68,0.2); color: #ff5370; border: 1px solid rgba(255,23,68,0.4); }
+  .risk-badge.medium { background: rgba(255,109,0,0.2); color: #ffab40; border: 1px solid rgba(255,109,0,0.4); }
+  .risk-badge.low { background: rgba(0,230,118,0.2); color: #69f0ae; border: 1px solid rgba(0,230,118,0.4); }
+
+  /* Score arc */
+  .score-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .score-arc-wrap { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
+  .score-arc-wrap svg { transform: rotate(-90deg); }
+  .score-number {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+  }
+  .score-detail p { font-size: 13px; color: var(--muted); font-family: var(--font-mono); margin-top: 4px; }
+  .score-label { font-size: 20px; font-weight: 700; color: #fff; }
+
+  /* Result sections */
+  .result-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .result-scroll::-webkit-scrollbar { width: 4px; }
+  .result-scroll::-webkit-scrollbar-track { background: transparent; }
+  .result-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .result-section-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .result-section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
   }
 
-  .drop-zone.drag-over {
-    border-color: var(--cyan);
-    background: rgba(0,255,200,0.07);
-    box-shadow: 0 0 30px rgba(0,255,200,0.1);
+  /* AI Explanation box */
+  .explanation-box {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--cyan);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+  }
+  .explanation-box.loading {
+    opacity: 0.5;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
   }
 
-  .drop-zone input[type="file"] {
-    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  /* Keyword tags */
+  .keyword-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .ktag {
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: rgba(255,23,68,0.12);
+    color: #ff6b6b;
+    border: 1px solid rgba(255,23,68,0.25);
+  }
+  .ktag.safe { background: rgba(0,230,118,0.1); color: #69f0ae; border-color: rgba(0,230,118,0.2); }
+
+  /* Score bar */
+  .score-bar-wrap {
+    background: var(--bg3);
+    border-radius: 6px;
+    height: 8px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .score-bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 1s ease;
+    width: 0;
+  }
+  .score-bar-fill.high { background: linear-gradient(90deg, #ff1744, #ff6d00); }
+  .score-bar-fill.medium { background: linear-gradient(90deg, #ff6d00, #ffea00); }
+  .score-bar-fill.low { background: linear-gradient(90deg, #00e676, #00b8d4); }
+
+  /* Safety tips */
+  .safety-tips { display: flex; flex-direction: column; gap: 8px; }
+  .tip-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg3);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text);
+    transition: border-color 0.15s;
+  }
+  .tip-item:hover { border-color: rgba(0,229,255,0.25); }
+  .tip-icon { font-size: 14px; flex-shrink: 0; margin-top: 2px; }
+
+  /* Extracted text */
+  .extracted-text-box {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    max-height: 120px;
+    overflow-y: auto;
+    line-height: 1.6;
+    white-space: pre-wrap;
   }
 
-  .drop-icon {
-    width: 48px; height: 48px; margin: 0 auto 14px;
-    background: rgba(0,255,200,0.08); border: 1px solid rgba(0,255,200,0.2);
-    border-radius: 12px; display: flex; align-items: center; justify-content: center;
-    color: var(--cyan);
-  }
-
-  .drop-text-main { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
-  .drop-text-sub { font-size: 12px; color: var(--muted); }
-
-  /* ── PREVIEW ── */
-  #imgPreviewWrap { display: none; margin-top: 18px; }
-
-  #imgPreviewWrap img {
-    max-width: 100%; max-height: 220px; border-radius: 10px;
-    border: 1px solid var(--border); object-fit: contain;
-  }
-
-  .preview-meta {
-    display: flex; align-items: center; gap: 10px; margin-top: 10px;
-    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted);
-  }
-
-  /* ── BUTTON ── */
-  .btn {
-    margin-top: 20px; width: 100%; padding: 14px 24px;
-    background: linear-gradient(135deg, rgba(0,255,200,0.15), rgba(123,97,255,0.15));
-    border: 1px solid rgba(0,255,200,0.3); border-radius: 10px;
-    color: var(--cyan); font-family: 'Space Grotesk', sans-serif;
-    font-size: 14px; font-weight: 600; letter-spacing: 0.08em;
-    text-transform: uppercase; cursor: pointer; transition: all 0.2s;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-  }
-
-  .btn:hover:not(:disabled) {
-    background: linear-gradient(135deg, rgba(0,255,200,0.25), rgba(123,97,255,0.25));
-    box-shadow: 0 0 24px rgba(0,255,200,0.2);
-    transform: translateY(-1px);
-  }
-
-  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-  /* ── SPINNER ── */
+  /* Loading spinner */
   .spinner {
-    width: 16px; height: 16px;
-    border: 2px solid rgba(0,255,200,0.3);
-    border-top-color: var(--cyan);
+    width: 20px; height: 20px;
+    border: 2px solid rgba(5,13,18,0.4);
+    border-top-color: var(--bg);
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
-    display: none;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ── RESULT BOX ── */
-  .result-box {
-    margin-top: 24px; padding: 20px 22px;
-    background: var(--surface); border-radius: 14px;
+  /* Analyzing overlay */
+  .analyzing-state {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 48px;
+  }
+  .analyzing-state.visible { display: flex; }
+  .scan-ring {
+    width: 72px; height: 72px;
+    border: 2px solid var(--border);
+    border-top-color: var(--cyan);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  .analyzing-state p {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+  .analyzing-dots::after {
+    content: '';
+    animation: dots 1.5s infinite;
+  }
+  @keyframes dots {
+    0% { content: ''; }
+    33% { content: '.'; }
+    66% { content: '..'; }
+    100% { content: '...'; }
+  }
+
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--bg3);
     border: 1px solid var(--border);
-    display: none; animation: fadeUp 0.35s ease;
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text);
+    z-index: 9998;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    max-width: 320px;
   }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.error { border-left: 3px solid var(--red); color: #ff6b6b; }
+  .toast.success { border-left: 3px solid var(--green); color: #69f0ae; }
 
-  .result-box.visible { display: block; }
-
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0); }
+  /* Responsive */
+  @media (max-width: 800px) {
+    .analyzer-body { grid-template-columns: 1fr; }
+    nav { padding: 16px 20px; }
+    .analyzer-nav { padding: 12px 16px; }
+    .hero-title { font-size: 44px; }
+    footer { flex-direction: column; gap: 8px; text-align: center; }
+    .stats-bar { gap: 28px; }
   }
-
-  .risk-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 16px;
-  }
-
-  .risk-label {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 32px; font-weight: 900; letter-spacing: 0.02em; text-transform: uppercase;
-  }
-
-  .risk-label.low    { color: var(--low); text-shadow: 0 0 20px rgba(0,255,200,0.4); }
-  .risk-label.medium { color: var(--medium); text-shadow: 0 0 20px rgba(255,209,102,0.4); }
-  .risk-label.high   { color: var(--high); text-shadow: 0 0 20px rgba(255,68,102,0.4); }
-
-  .risk-badge {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; padding: 4px 10px;
-    border-radius: 6px; font-weight: 500;
-  }
-
-  .risk-badge.low    { background: rgba(0,255,200,0.1);  color: var(--low);    border: 1px solid rgba(0,255,200,0.25);  }
-  .risk-badge.medium { background: rgba(255,209,102,0.1); color: var(--medium); border: 1px solid rgba(255,209,102,0.25); }
-  .risk-badge.high   { background: rgba(255,68,102,0.1);  color: var(--high);   border: 1px solid rgba(255,68,102,0.25);  }
-
-  /* Score bar */
-  .score-bar-wrap { margin-bottom: 14px; }
-  .score-bar-label { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-bottom: 6px; letter-spacing: 0.08em; }
-  .score-bar-bg { height: 6px; background: rgba(255,255,255,0.06); border-radius: 99px; overflow: hidden; }
-  .score-bar-fill {
-    height: 100%; width: 0; border-radius: 99px;
-    transition: width 0.9s cubic-bezier(0.22,1,0.36,1);
-  }
-  .score-bar-fill.low    { background: linear-gradient(90deg, rgba(0,255,200,0.6), var(--low)); }
-  .score-bar-fill.medium { background: linear-gradient(90deg, rgba(255,209,102,0.6), var(--medium)); }
-  .score-bar-fill.high   { background: linear-gradient(90deg, rgba(255,68,102,0.6), var(--high)); }
-
-  .meta-row { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-  .meta-row span { color: var(--text); font-weight: 500; }
-
-  /* ── OCR TEXT BOX ── */
-  .ocr-block {
-    margin-top: 14px; padding: 14px;
-    background: rgba(0,0,0,0.3); border-radius: 8px;
-    border: 1px solid rgba(255,255,255,0.05);
-    font-family: 'JetBrains Mono', monospace; font-size: 12px;
-    color: #8fa0b8; line-height: 1.7; max-height: 140px; overflow-y: auto;
-    white-space: pre-wrap; word-break: break-word;
-  }
-
-  /* ── AUTO URL SECTION ── */
-  .url-extract-section {
-    margin-top: 20px;
-    border-top: 1px solid rgba(0,255,200,0.1);
-    padding-top: 18px;
-  }
-
-  .url-extract-title {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; color: var(--cyan); letter-spacing: 0.12em;
-    text-transform: uppercase; margin-bottom: 12px;
-    display: flex; align-items: center; gap: 8px;
-  }
-
-  .url-extract-title::before {
-    content: ''; width: 6px; height: 6px; border-radius: 50%;
-    background: var(--cyan); animation: blink 1s infinite;
-  }
-
-  /* individual extracted URL card */
-  .url-card {
-    background: var(--bg); border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 10px; padding: 14px 16px; margin-bottom: 10px;
-    transition: border-color 0.2s;
-  }
-
-  .url-card:last-child { margin-bottom: 0; }
-
-  .url-card-top {
-    display: flex; align-items: flex-start; justify-content: space-between;
-    gap: 12px; margin-bottom: 8px;
-  }
-
-  .url-text {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px; color: var(--purple); word-break: break-all; flex: 1;
-  }
-
-  .url-scan-status {
-    font-size: 11px; font-family: 'JetBrains Mono', monospace;
-    white-space: nowrap; padding: 3px 8px; border-radius: 6px;
-  }
-
-  .url-scan-status.scanning {
-    background: rgba(123,97,255,0.12); color: var(--purple);
-    border: 1px solid rgba(123,97,255,0.25); animation: pulse 1s infinite;
-  }
-
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-
-  .url-scan-status.low    { background: rgba(0,255,200,0.08);  color: var(--low);    border: 1px solid rgba(0,255,200,0.2); }
-  .url-scan-status.medium { background: rgba(255,209,102,0.08); color: var(--medium); border: 1px solid rgba(255,209,102,0.2); }
-  .url-scan-status.high   { background: rgba(255,68,102,0.08);  color: var(--high);   border: 1px solid rgba(255,68,102,0.2); }
-
-  .url-score-bar-bg {
-    height: 4px; background: rgba(255,255,255,0.05);
-    border-radius: 99px; overflow: hidden;
-  }
-
-  .url-score-bar-fill {
-    height: 100%; width: 0; border-radius: 99px;
-    transition: width 0.8s cubic-bezier(0.22,1,0.36,1);
-  }
-
-  .url-score-bar-fill.low    { background: var(--low);    }
-  .url-score-bar-fill.medium { background: var(--medium); }
-  .url-score-bar-fill.high   { background: var(--high);   }
-
-  .url-prediction {
-    font-size: 11px; color: var(--muted); margin-top: 6px;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .no-urls-note {
-    font-size: 12px; color: var(--muted); font-family: 'JetBrains Mono', monospace;
-    text-align: center; padding: 12px 0;
-  }
-
-  /* ── ERROR ── */
-  .error-msg {
-    margin-top: 14px; padding: 12px 16px;
-    background: rgba(255,68,102,0.08); border: 1px solid rgba(255,68,102,0.25);
-    border-radius: 8px; color: var(--red); font-size: 13px;
-    font-family: 'JetBrains Mono', monospace; display: none;
-  }
-
-  .error-msg.visible { display: block; }
-
-  /* ── THREAT CARDS ── */
-  .threat-grid {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 14px; margin-top: 48px;
-  }
-
-  .threat-card {
-    background: var(--surface);
-    border: 1px solid var(--border); border-radius: 14px; padding: 20px;
-    transition: all 0.25s;
-  }
-
-  .threat-card:hover { border-color: rgba(0,255,200,0.25); transform: translateY(-2px); }
-
-  .threat-card-icon {
-    width: 38px; height: 38px; border-radius: 9px; margin-bottom: 12px;
-    display: flex; align-items: center; justify-content: center; font-size: 18px;
-  }
-
-  .threat-card h4 {
-    font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text);
-  }
-
-  .threat-card p { font-size: 12px; color: var(--muted); line-height: 1.5; }
-
-  /* ── SCROLLBAR ── */
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(0,255,200,0.2); border-radius: 99px; }
 </style>
 </head>
 <body>
-<div class="wrapper">
+<div class="grid-bg"></div>
 
-  <!-- HEADER -->
-  <header>
-    <div class="logo-badge">PhishNet· Threat Intelligence v2.0</div>
-    <h1>Social-Engineering<br/>Detector</h1>
-    <p class="subtitle">AI-powered threat analysis · Text · URL · Screenshot</p>
-  </header>
-  
+<!-- ══════════════════════════════════════
+     LANDING PAGE
+══════════════════════════════════════ -->
+<div id="landingPage" class="page active">
+
+  <div class="ticker-wrap">
+    <span class="ticker-content">
+      ⚠ THREAT DETECTED: Credential phishing campaign targeting banking users &nbsp;•&nbsp;
+      🔴 HIGH RISK URL flagged: secure-login-verify[.]tk &nbsp;•&nbsp;
+      ⚠ SMS spoofing attack: fake OTP verification messages circulating &nbsp;•&nbsp;
+      🔴 Phishing kit impersonating HDFC Bank detected &nbsp;•&nbsp;
+      ⚠ URGENT: Tax refund scam targeting users — do not click links &nbsp;•&nbsp;
+      🛡 PhishNet AI Protection ACTIVE — system nominal
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    </span>
+  </div>
+
+  <nav>
+    <div class="logo">
+      <div class="logo-icon">🛡</div>
+      PhishNet
+    </div>
+    <div style="display:flex;gap:12px;align-items:center">
+      <div class="status-pill">
+        <div class="pulse-dot"></div>
+        GEMINI AI READY
+      </div>
+      <button class="scan-btn" style="padding:10px 20px;font-size:13px" onclick="goTo('analyzerPage')">Launch Analyzer →</button>
+    </div>
+  </nav>
+
   <div class="hero">
-    <div class="info-box">
+    <div class="hero-glow"></div>
+    <div class="hero-tag">// Real-time AI Threat Detection</div>
+    <h1 class="hero-title">
+      Detect<br><span>Phishing</span><br>Instantly.
+    </h1>
+    <p class="hero-subtitle">
+      Paste a suspicious message · scan a URL · or upload a screenshot.<br>
+      AI + ML identifies threats before they can harm you.
+    </p>
 
-      <h2>What is Social Engineering?</h2>
-
-      <p>
-      Social engineering is a cyberattack technique where attackers manipulate people into revealing
-      sensitive information such as passwords, banking details, or OTPs. Instead of hacking systems,
-      they exploit human psychology using tactics like urgency, fear, authority impersonation, or
-      fake rewards.
-      </p>
-
-      <p>
-      PhishNet analyzes messages, URLs, and screenshots to detect these manipulation patterns and
-      alert users before they fall victim to phishing or fraud.
-      </p>
-
+    <div class="action-cards">
+      <div class="action-card" onclick="goTo('analyzerPage');showTab('text')">
+        <div class="card-icon">💬</div>
+        <div class="card-label">Analyze Message</div>
+        <div class="card-desc">SMS, email, or chat text</div>
+      </div>
+      <div class="action-card" onclick="goTo('analyzerPage');showTab('url')">
+        <div class="card-icon">🔗</div>
+        <div class="card-label">Scan URL</div>
+        <div class="card-desc">Links & suspicious domains</div>
+      </div>
+      <div class="action-card" onclick="goTo('analyzerPage');showTab('screenshot')">
+        <div class="card-icon">📸</div>
+        <div class="card-label">Screenshot OCR</div>
+        <div class="card-desc">Upload image for AI analysis</div>
+      </div>
     </div>
-    <h1>Detect Threats Before They Strike</h1>
+  </div>
 
-   <p>Powered by Claude AI + ML. Analyze messages and URLs for phishing and manipulation tactics.</p>
+  <div class="stats-bar">
+    <div class="stat-item">
+      <span class="stat-number" id="stat1">0</span>
+      <span class="stat-label">Threats Detected</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-number" id="stat2">0%</span>
+      <span class="stat-label">Detection Accuracy</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-number" id="stat3">0ms</span>
+      <span class="stat-label">Avg Response Time</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-number" id="stat4">0</span>
+      <span class="stat-label">Models Active</span>
+    </div>
+  </div>
 
+  <section class="how-it-works">
+    <div class="section-label">// System Architecture</div>
+    <h2 class="section-title">How PhishNet Works</h2>
+    <div class="steps-grid">
+      <div class="step-card">
+        <div class="step-num">01</div>
+        <div class="step-title">Input Capture</div>
+        <div class="step-desc">Submit a text message, URL, or screenshot through the secure analyzer interface.</div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">02</div>
+        <div class="step-title">ML Classification</div>
+        <div class="step-desc">A trained scikit-learn model scores the content against known phishing patterns.</div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">03</div>
+        <div class="step-title">AI Deep Analysis</div>
+        <div class="step-desc">Gemini AI provides contextual understanding and extracts text from images via OCR.</div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">04</div>
+        <div class="step-title">Threat Report</div>
+        <div class="step-desc">Risk score, flagged indicators, expert explanation, and safety recommendations.</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>PhishNet v2.0 — Powered by Gemini AI + scikit-learn</span>
+    <span>Built for cybersecurity awareness</span>
+  </footer>
 </div>
-  <!-- TABS -->
-  <div class="tabs">
-    <button class="tab-btn active" onclick="showTab('text')" id="tab-text">
-      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6M9 8h6M9 16h4M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z"/></svg>
-      Message Analysis
-    </button>
-    <button class="tab-btn" onclick="showTab('url')" id="tab-url">
-      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-      URL Scanner
-    </button>
-    <button class="tab-btn" onclick="showTab('screenshot')" id="tab-screenshot">
-      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-      Screenshot
-    </button>
-  </div>
 
-  <!-- PANEL -->
-  <div class="panel">
+<!-- ══════════════════════════════════════
+     ANALYZER PAGE
+══════════════════════════════════════ -->
+<div id="analyzerPage" class="page">
 
-    <!-- TEXT SECTION -->
-    <div class="section active" id="textSection">
-      <label class="field-label">Suspicious Message</label>
-      <textarea id="messageInput" placeholder="Paste a suspicious message, email content, or phishing text here…"></textarea>
-      <div class="error-msg" id="textError"></div>
-      <button class="btn" id="textBtn" onclick="analyzeText()">
-        <div class="spinner" id="textSpinner"></div>
-        <span id="textBtnLabel">Analyze Message</span>
-      </button>
-      <div class="result-box" id="textResult"></div>
+  <div class="analyzer-nav">
+    <div class="back-btn" onclick="goTo('landingPage')">← Back</div>
+    <div class="logo" style="font-size:18px">
+      <div class="logo-icon" style="width:28px;height:28px;font-size:14px">🛡</div>
+      PhishNet
     </div>
-
-    <!-- URL SECTION -->
-    <div class="section" id="urlSection">
-      <label class="field-label">Suspicious URL</label>
-      <input type="text" id="urlInput" placeholder="https://suspicious-login.com/verify?token=abc123…"/>
-      <div class="error-msg" id="urlError"></div>
-      <button class="btn" id="urlBtn" onclick="analyzeURL()">
-        <div class="spinner" id="urlSpinner"></div>
-        <span id="urlBtnLabel">Scan URL</span>
-      </button>
-      <div class="result-box" id="urlResult"></div>
+    <div class="tab-row">
+      <div class="tab-btn active" id="tab-text" onclick="showTab('text')">💬 Message</div>
+      <div class="tab-btn" id="tab-url" onclick="showTab('url')">🔗 URL</div>
+      <div class="tab-btn" id="tab-screenshot" onclick="showTab('screenshot')">📸 Screenshot</div>
     </div>
-
-    <!-- SCREENSHOT SECTION -->
-    <div class="section" id="screenshotSection">
-      <label class="field-label">Upload Screenshot</label>
-
-      <div class="drop-zone" id="dropZone">
-        <input type="file" id="screenshotInput" accept="image/*" onchange="previewImage(event)"/>
-        <div class="drop-icon">
-          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-        </div>
-        <div class="drop-text-main">Drop screenshot here or click to browse</div>
-        <div class="drop-text-sub">PNG, JPG, WEBP · Max 10MB</div>
-      </div>
-
-      <div id="imgPreviewWrap">
-        <img id="imgPreview" src="" alt="Preview"/>
-        <div class="preview-meta">
-          <span id="previewFileName"></span>
-          <span>·</span>
-          <span id="previewFileSize"></span>
-        </div>
-      </div>
-
-      <div class="error-msg" id="screenshotError"></div>
-      <button class="btn" id="screenshotBtn" onclick="analyzeScreenshot()">
-        <div class="spinner" id="screenshotSpinner"></div>
-        <span id="screenshotBtnLabel">Analyze Screenshot</span>
-      </button>
-      <div class="result-box" id="screenshotResult"></div>
-    </div>
-
-  </div><!-- /panel -->
-
-  <!-- THREAT TYPE CARDS -->
-  <div class="threat-grid">
-    <div class="threat-card">
-      <div class="threat-card-icon" style="background:rgba(255,68,102,0.1);color:var(--red)">🎣</div>
-      <h4>Credential Phishing</h4>
-      <p>Fake login pages harvesting usernames and passwords.</p>
-    </div>
-    <div class="threat-card">
-      <div class="threat-card-icon" style="background:rgba(255,209,102,0.1);color:var(--yellow)">📧</div>
-      <h4>Email Spoofing</h4>
-      <p>Forged sender addresses impersonating trusted entities.</p>
-    </div>
-    <div class="threat-card">
-      <div class="threat-card-icon" style="background:rgba(123,97,255,0.1);color:var(--purple)">🔗</div>
-      <h4>Malicious URLs</h4>
-      <p>Obfuscated links redirecting to malware or scam sites.</p>
-    </div>
-    <div class="threat-card">
-      <div class="threat-card-icon" style="background:rgba(0,255,200,0.1);color:var(--cyan)">📱</div>
-      <h4>Smishing / Vishing</h4>
-      <p>SMS and voice-based social engineering attacks.</p>
+    <div class="status-pill">
+      <div class="pulse-dot"></div>
+      SYSTEM ONLINE
     </div>
   </div>
 
-</div><!-- /wrapper -->
+  <div class="analyzer-body">
 
-<script>
-  const API_URL = "http://127.0.0.1:8000";
-
-  /* ──────────────── TAB SWITCHING ──────────────── */
-  function showTab(tab) {
-    ["text","url","screenshot"].forEach(t => {
-      document.getElementById(t+"Section").classList.remove("active");
-      document.getElementById("tab-"+t).classList.remove("active");
-    });
-    document.getElementById(tab+"Section").classList.add("active");
-    document.getElementById("tab-"+tab).classList.add("active");
-  }
-
-  /* ──────────────── DRAG & DROP ──────────────── */
-  const dropZone = document.getElementById("dropZone");
-
-  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
-  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
-  dropZone.addEventListener("drop", e => {
-    e.preventDefault();
-    dropZone.classList.remove("drag-over");
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) {
-      document.getElementById("screenshotInput").files = e.dataTransfer.files;
-      renderPreview(file);
-    }
-  });
-
-  /* ──────────────── IMAGE PREVIEW ──────────────── */
-  function previewImage(event) {
-    const file = event.target.files[0];
-    if (file) renderPreview(file);
-  }
-
-  function renderPreview(file) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const wrap = document.getElementById("imgPreviewWrap");
-      document.getElementById("imgPreview").src = e.target.result;
-      document.getElementById("previewFileName").textContent = file.name;
-      document.getElementById("previewFileSize").textContent = (file.size / 1024).toFixed(1) + " KB";
-      wrap.style.display = "block";
-    };
-    reader.readAsDataURL(file);
-    // reset result
-    const rb = document.getElementById("screenshotResult");
-    rb.innerHTML = "";
-    rb.classList.remove("visible");
-    hideError("screenshotError");
-  }
-
-  /* ──────────────── HELPERS ──────────────── */
-  function setLoading(prefix, on) {
-    document.getElementById(prefix+"Btn").disabled = on;
-    document.getElementById(prefix+"Spinner").style.display = on ? "block" : "none";
-    document.getElementById(prefix+"BtnLabel").textContent = on
-      ? (prefix === "text" ? "Analyzing…" : prefix === "url" ? "Scanning…" : "Analyzing…")
-      : (prefix === "text" ? "Analyze Message" : prefix === "url" ? "Scan URL" : "Analyze Screenshot");
-  }
-
-  function showError(id, msg) {
-    const el = document.getElementById(id);
-    el.textContent = "⚠  " + msg;
-    el.classList.add("visible");
-  }
-
-  function hideError(id) {
-    const el = document.getElementById(id);
-    el.textContent = "";
-    el.classList.remove("visible");
-  }
-
-  function normalizeScore(raw) {
-    // Accept 0–1 or 0–100 scores, always return 0–100
-    if (raw == null) return 0;
-    const n = parseFloat(raw);
-    return n <= 1 ? Math.round(n * 100) : Math.round(n);
-  }
-
-  function riskClass(level) {
-    if (!level) return "medium";
-    const l = level.toLowerCase();
-    if (l.includes("high")) return "high";
-    if (l.includes("low"))  return "low";
-    return "medium";
-  }
-
-  function renderResult(containerId, data) {
-    const rc   = riskClass(data.risk_level);
-    const pct  = normalizeScore(data.score);
-    const box  = document.getElementById(containerId);
-
-    box.innerHTML = `
-      <div class="risk-header">
-        <div class="risk-label ${rc}">${data.risk_level || "Unknown"} Risk</div>
-        <div class="risk-badge ${rc}">${rc.toUpperCase()}</div>
+    <!-- INPUT PANEL -->
+    <div class="input-panel">
+      <div class="panel-header">
+        <span class="panel-title" id="panelTitle">TEXT ANALYSIS</span>
+        <span class="panel-icon" id="panelIcon">💬</span>
       </div>
-      <div class="score-bar-wrap">
-        <div class="score-bar-label">THREAT SCORE · ${pct}%</div>
-        <div class="score-bar-bg">
-          <div class="score-bar-fill ${rc}" id="${containerId}-bar"></div>
+      <div class="panel-body">
+
+        <!-- TEXT TAB -->
+        <div class="tab-content active" id="content-text">
+          <textarea id="textInput" placeholder="Paste the suspicious message here…&#10;&#10;e.g. 'Your account has been suspended. Click here to verify your OTP immediately to avoid permanent closure.'" rows="7"></textarea>
+          <div>
+            <div class="examples-label" style="margin-bottom:8px">Quick test examples</div>
+            <div class="example-chips">
+              <div class="chip danger" onclick="fillText('URGENT: Your SBI account is locked. Click http://sbi-verify.tk/login to restore access and verify your OTP immediately.')">🔴 Bank phishing</div>
+              <div class="chip danger" onclick="fillText('Congratulations! You won a prize of Rs.50,000! Claim now: bit.ly/claim-prize. Limited time offer. Act now or lose your reward forever!')">🔴 Prize scam</div>
+              <div class="chip danger" onclick="fillText('Dear Customer, your KYC is expired. Update immediately to avoid account suspension: http://192.168.1.1/kyc-update')">🔴 KYC fraud</div>
+              <div class="chip" onclick="fillText('Account No. XXXXXX9381 CREDIT with amount Rs. 10000.00 on 06-03-2026. Balance: Rs.1844435.00. [IN2061389]')">✅ Bank alert</div>
+              <div class="chip" onclick="fillText('Your Amazon order #405-123 has been shipped. Expected delivery: March 10. Track your package at amazon.in/track')">✅ Legit email</div>
+            </div>
+          </div>
+          <button class="scan-btn" onclick="analyze('text')" id="btnText">
+            <span>🔍</span> Scan Message
+          </button>
         </div>
+
+        <!-- URL TAB -->
+        <div class="tab-content" id="content-url">
+          <input type="text" id="urlInput" placeholder="Enter URL to analyze…  e.g. http://secure-bank-verify.tk/login" onkeydown="if(event.key==='Enter')analyze('url')">
+          <div>
+            <div class="examples-label" style="margin-bottom:8px">Quick test examples</div>
+            <div class="example-chips">
+              <div class="chip danger" onclick="fillUrl('http://paypa1-secure-verify.tk/account/login')">🔴 PayPal spoof</div>
+              <div class="chip danger" onclick="fillUrl('http://192.168.1.100/banking/login')">🔴 IP address</div>
+              <div class="chip danger" onclick="fillUrl('https://bit.ly/free-iphone-winner')">🔴 Shortened</div>
+              <div class="chip" onclick="fillUrl('https://www.google.com')">✅ Google.com</div>
+              <div class="chip" onclick="fillUrl('https://amazon.in/orders')">✅ Amazon.in</div>
+            </div>
+          </div>
+          <button class="scan-btn" onclick="analyze('url')" id="btnUrl">
+            <span>🔍</span> Scan URL
+          </button>
+        </div>
+
+        <!-- SCREENSHOT TAB -->
+        <div class="tab-content" id="content-screenshot">
+          <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" ondragover="handleDragover(event)" ondragleave="handleDragleave()" ondrop="handleDrop(event)">
+            <div class="drop-icon">🖼️</div>
+            <div class="drop-label">Drop a screenshot here</div>
+            <div class="drop-hint">or click to browse — PNG, JPG, WEBP</div>
+          </div>
+          <div class="preview-wrap" id="previewWrap">
+            <img id="previewImg" src="" alt="Preview">
+            <button class="remove-img" onclick="removeImg()">×</button>
+          </div>
+          <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFile(event)">
+          <p style="font-family:var(--font-mono);font-size:11px;color:var(--muted);line-height:1.5">
+            PhishNet will use Gemini Vision to extract all text from your screenshot, then analyze it for phishing indicators.
+          </p>
+          <button class="scan-btn" onclick="analyze('screenshot')" id="btnScreenshot">
+            <span>🔍</span> Analyze Screenshot
+          </button>
+        </div>
+
       </div>
-      <div class="meta-row">Prediction: <span>${data.prediction || "—"}</span></div>
-    `;
+    </div>
 
-    box.classList.add("visible");
-    // animate bar
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const bar = document.getElementById(containerId+"-bar");
-        if (bar) bar.style.width = pct + "%";
-      });
-    });
-  }
-
-  /* ──────────────── URL EXTRACTION ──────────────── */
-  function extractURLs(text) {
-    if (!text) return [];
-    // Broad URL regex covering http/https with paths, queries, fragments
-    const re = /https?:\/\/(?:[-\w.]|(?:%[\da-fA-F]{2}))+(?::\d+)?(?:\/[-\w.@:%+~#=/?&]*)?/gi;
-    const found = text.match(re) || [];
-    // Deduplicate
-    return [...new Set(found)];
-  }
-
-  /* Scan a single URL and return result */
-  async function scanSingleURL(url) {
-    const response = await fetch(API_URL + "/analyze-url", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url })
-    });
-    if (!response.ok) throw new Error("HTTP " + response.status);
-    return await response.json();
-  }
-
-  /* Render extracted URLs into a container, auto-scanning each */
-  async function renderExtractedURLs(containerEl, urls) {
-    if (urls.length === 0) {
-      containerEl.innerHTML = `<div class="no-urls-note">No URLs detected in the screenshot.</div>`;
-      return;
-    }
-
-    // Build cards immediately with "scanning" status
-    containerEl.innerHTML = urls.map((url, i) => `
-      <div class="url-card" id="url-card-${i}">
-        <div class="url-card-top">
-          <div class="url-text">${escapeHTML(url)}</div>
-          <div class="url-scan-status scanning" id="url-status-${i}">Scanning…</div>
-        </div>
-        <div class="url-score-bar-bg">
-          <div class="url-score-bar-fill" id="url-bar-${i}"></div>
-        </div>
-        <div class="url-prediction" id="url-pred-${i}"></div>
+    <!-- RESULT PANEL -->
+    <div class="result-panel">
+      <div class="panel-header">
+        <span class="panel-title">THREAT ANALYSIS REPORT</span>
+        <span class="panel-icon">📊</span>
       </div>
-    `).join("");
 
-    // Scan each URL concurrently
-    const promises = urls.map(async (url, i) => {
-      try {
-        const data = await scanSingleURL(url);
-        const rc  = riskClass(data.risk_level);
-        const pct = normalizeScore(data.score);
-        const card = document.getElementById("url-card-"+i);
-        if (card) {
-          card.style.borderColor = rc === "high"
-            ? "rgba(255,68,102,0.3)"
-            : rc === "medium"
-            ? "rgba(255,209,102,0.25)"
-            : "rgba(0,255,200,0.2)";
-        }
-        const statusEl = document.getElementById("url-status-"+i);
-        if (statusEl) {
-          statusEl.textContent = (data.risk_level || rc).toUpperCase() + " RISK";
-          statusEl.className   = "url-scan-status " + rc;
-        }
-        const barEl = document.getElementById("url-bar-"+i);
-        if (barEl) {
-          barEl.classList.add(rc);
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => { barEl.style.width = pct + "%"; });
-          });
-        }
-        const predEl = document.getElementById("url-pred-"+i);
-        if (predEl) {
-          predEl.textContent = "Prediction: " + (data.prediction || "—") + "  ·  Score: " + pct + "%";
-        }
-      } catch (err) {
-        const statusEl = document.getElementById("url-status-"+i);
-        if (statusEl) {
-          statusEl.textContent = "Scan Failed";
-          statusEl.className   = "url-scan-status medium";
-        }
-        const predEl = document.getElementById("url-pred-"+i);
-        if (predEl) predEl.textContent = "Error: " + err.message;
-      }
-    });
+      <!-- Idle state -->
+      <div class="result-idle" id="idleState">
+        <div class="idle-icon">🛡️</div>
+        <p>Submit a message, URL, or screenshot<br>to generate a threat analysis report.</p>
+      </div>
 
-    await Promise.allSettled(promises);
-  }
+      <!-- Analyzing state -->
+      <div class="analyzing-state" id="analyzingState">
+        <div class="scan-ring"></div>
+        <p id="analyzingMsg">Analyzing threat<span class="analyzing-dots"></span></p>
+        <p style="font-size:10px;opacity:0.5">Running ML model + Gemini AI</p>
+      </div>
 
-  function escapeHTML(str) {
-    return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  }
-
-  /* ──────────────── ANALYZE TEXT ──────────────── */
-  async function analyzeText() {
-    const message = document.getElementById("messageInput").value.trim();
-    if (!message) { showError("textError","Please enter a message to analyze."); return; }
-    hideError("textError");
-    setLoading("text", true);
-    try {
-      const response = await fetch(API_URL + "/analyze-text", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message })
-      });
-      if (!response.ok) throw new Error("Server returned " + response.status);
-      const data = await response.json();
-      renderResult("textResult", data);
-    } catch (err) {
-      showError("textError", "Failed to connect to analysis server. " + err.message);
-    } finally {
-      setLoading("text", false);
-    }
-  }
-
-  /* ──────────────── ANALYZE URL ──────────────── */
-  async function analyzeURL() {
-    const url = document.getElementById("urlInput").value.trim();
-    if (!url) { showError("urlError","Please enter a URL to scan."); return; }
-    hideError("urlError");
-    setLoading("url", true);
-    try {
-      const response = await fetch(API_URL + "/analyze-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url })
-      });
-      if (!response.ok) throw new Error("Server returned " + response.status);
-      const data = await response.json();
-      renderResult("urlResult", data);
-    } catch (err) {
-      showError("urlError", "Failed to connect to analysis server. " + err.message);
-    } finally {
-      setLoading("url", false);
-    }
-  }
-
-  /* ──────────────── ANALYZE SCREENSHOT ──────────────── */
-  async function analyzeScreenshot() {
-    const fileInput = document.getElementById("screenshotInput");
-    const file = fileInput.files[0];
-    if (!file) { showError("screenshotError","Please upload a screenshot first."); return; }
-    hideError("screenshotError");
-    setLoading("screenshot", true);
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const response = await fetch(API_URL + "/analyze-screenshot", {
-        method: "POST",
-        body: formData
-      });
-      if (!response.ok) throw new Error("Server returned " + response.status);
-      const data = await response.json();
-
-      // Normalise nested vs flat response shapes
-      const analysisData = data.analysis || data;
-      const ocrText      = data.ocr_text || data.extracted_text || "";
-      const rc           = riskClass(analysisData.risk_level);
-      const pct          = normalizeScore(analysisData.score);
-
-      const box = document.getElementById("screenshotResult");
-
-      // Extract URLs from OCR text
-      const extractedURLs = extractURLs(ocrText);
-      const urlCountLabel = extractedURLs.length > 0
-        ? `<span style="color:var(--cyan)">${extractedURLs.length} URL${extractedURLs.length>1?"s":""} detected</span>`
-        : `<span style="color:var(--muted)">No URLs detected</span>`;
-
-      box.innerHTML = `
-        <div class="risk-header">
-          <div class="risk-label ${rc}">${analysisData.risk_level || "Unknown"} Risk</div>
-          <div class="risk-badge ${rc}">${rc.toUpperCase()}</div>
-        </div>
-        <div class="score-bar-wrap">
-          <div class="score-bar-label">THREAT SCORE · ${pct}%</div>
-          <div class="score-bar-bg">
-            <div class="score-bar-fill ${rc}" id="screenshotResult-bar"></div>
+      <!-- Result content -->
+      <div class="result-content" id="resultContent">
+        <div class="risk-header" id="riskHeader">
+          <div class="risk-badge" id="riskBadge"></div>
+          <div class="score-row">
+            <div class="score-arc-wrap">
+              <svg width="80" height="80" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="6"/>
+                <circle id="scoreCircle" cx="40" cy="40" r="34" fill="none" stroke="#00e5ff" stroke-width="6"
+                  stroke-linecap="round" stroke-dasharray="213.6" stroke-dashoffset="213.6"/>
+              </svg>
+              <div class="score-number" id="scoreNumber">0</div>
+            </div>
+            <div class="score-detail">
+              <div class="score-label" id="scoreLabel">Risk Score</div>
+              <p id="predictionLabel"></p>
+            </div>
           </div>
         </div>
-        <div class="meta-row">Prediction: <span>${analysisData.prediction || "—"}</span></div>
-        ${ocrText ? `
-        <div class="meta-row" style="margin-top:14px;">Extracted Text:</div>
-        <div class="ocr-block">${escapeHTML(ocrText)}</div>
-        ` : ""}
-        <div class="url-extract-section">
-          <div class="url-extract-title">Auto URL Extraction &amp; Analysis · ${urlCountLabel}</div>
-          <div id="extractedURLsContainer"></div>
+
+        <div class="result-scroll" id="resultScroll">
+
+          <!-- Score bar -->
+          <div>
+            <div class="result-section-title">Threat Level</div>
+            <div class="score-bar-wrap">
+              <div class="score-bar-fill" id="scoreBarFill"></div>
+            </div>
+          </div>
+
+          <!-- AI Explanation -->
+          <div id="explanationSection">
+            <div class="result-section-title">AI Analysis</div>
+            <div class="explanation-box" id="explanationBox">—</div>
+          </div>
+
+          <!-- Keywords -->
+          <div id="keywordsSection" style="display:none">
+            <div class="result-section-title">Detected Indicators</div>
+            <div class="keyword-tags" id="keywordTags"></div>
+          </div>
+
+          <!-- Extracted text (screenshot only) -->
+          <div id="extractedSection" style="display:none">
+            <div class="result-section-title">Extracted Text (OCR)</div>
+            <div class="extracted-text-box" id="extractedText"></div>
+          </div>
+
+          <!-- Safety tips -->
+          <div id="tipsSection">
+            <div class="result-section-title">Safety Recommendations</div>
+            <div class="safety-tips" id="safetyTips"></div>
+          </div>
+
         </div>
-      `;
+      </div>
+    </div>
 
-      box.classList.add("visible");
+  </div>
+</div>
 
-      // Animate score bar
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const bar = document.getElementById("screenshotResult-bar");
-          if (bar) bar.style.width = pct + "%";
-        });
-      });
+<!-- Toast -->
+<div class="toast" id="toast"></div>
 
-      // Auto-scan extracted URLs
-      const urlContainer = document.getElementById("extractedURLsContainer");
-      if (urlContainer) {
-        await renderExtractedURLs(urlContainer, extractedURLs);
-      }
+<script>
+const API = 'http://127.0.0.1:8000';
+let selectedFile = null;
 
-    } catch (err) {
-      showError("screenshotError", "Failed to analyze screenshot. " + err.message);
-    } finally {
-      setLoading("screenshot", false);
-    }
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+function goTo(pageId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+const tabMeta = {
+  text:       { title: 'TEXT ANALYSIS',       icon: '💬' },
+  url:        { title: 'URL ANALYSIS',         icon: '🔗' },
+  screenshot: { title: 'SCREENSHOT ANALYSIS',  icon: '📸' },
+};
+function showTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('content-' + tab).classList.add('active');
+  document.getElementById('panelTitle').textContent = tabMeta[tab].title;
+  document.getElementById('panelIcon').textContent = tabMeta[tab].icon;
+  resetResult();
+}
+
+// ── EXAMPLE FILLERS ───────────────────────────────────────────────────────────
+function fillText(t) { document.getElementById('textInput').value = t; }
+function fillUrl(u)  { document.getElementById('urlInput').value = u; }
+
+// ── FILE HANDLING ─────────────────────────────────────────────────────────────
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (file) loadPreview(file);
+}
+function handleDragover(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.add('dragover');
+}
+function handleDragleave() {
+  document.getElementById('dropZone').classList.remove('dragover');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  handleDragleave();
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadPreview(file);
+}
+function loadPreview(file) {
+  selectedFile = file;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('previewImg').src = ev.target.result;
+    document.getElementById('previewWrap').style.display = 'block';
+    document.getElementById('dropZone').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+function removeImg() {
+  selectedFile = null;
+  document.getElementById('previewImg').src = '';
+  document.getElementById('previewWrap').style.display = 'none';
+  document.getElementById('dropZone').style.display = 'flex';
+  document.getElementById('fileInput').value = '';
+}
+
+// ── UI STATE ──────────────────────────────────────────────────────────────────
+function setLoading(type, on, msg) {
+  const btn = document.getElementById('btn' + type.charAt(0).toUpperCase() + type.slice(1));
+  if (on) {
+    btn.disabled = true;
+    btn.innerHTML = `<div class="spinner"></div> ${msg || 'Analyzing...'}`;
+    showAnalyzing(msg);
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = `<span>🔍</span> ${type === 'text' ? 'Scan Message' : type === 'url' ? 'Scan URL' : 'Analyze Screenshot'}`;
   }
+}
+function showAnalyzing(msg) {
+  document.getElementById('idleState').style.display = 'none';
+  document.getElementById('analyzingState').classList.add('visible');
+  document.getElementById('resultContent').classList.remove('visible');
+  if (msg) document.getElementById('analyzingMsg').innerHTML = msg + '<span class="analyzing-dots"></span>';
+}
+function resetResult() {
+  document.getElementById('idleState').style.display = 'flex';
+  document.getElementById('analyzingState').classList.remove('visible');
+  document.getElementById('resultContent').classList.remove('visible');
+}
+
+// ── ANALYZE ───────────────────────────────────────────────────────────────────
+async function analyze(type) {
+  try {
+    let data;
+    if (type === 'text') {
+      const msg = document.getElementById('textInput').value.trim();
+      if (!msg) { showToast('Please enter a message to analyze', 'error'); return; }
+      setLoading('text', true, 'Analyzing message');
+      const res = await fetch(`${API}/analyze-text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg })
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || `Server error ${res.status}`);
+      data = await res.json();
+      renderResult(data, type);
+
+    } else if (type === 'url') {
+      const url = document.getElementById('urlInput').value.trim();
+      if (!url) { showToast('Please enter a URL to scan', 'error'); return; }
+      setLoading('url', true, 'Scanning URL');
+      const res = await fetch(`${API}/analyze-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || `Server error ${res.status}`);
+      data = await res.json();
+      renderResult(data, type);
+
+    } else if (type === 'screenshot') {
+      if (!selectedFile) { showToast('Please upload a screenshot first', 'error'); return; }
+      setLoading('screenshot', true, 'Extracting text with Gemini Vision');
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      const res = await fetch(`${API}/analyze-screenshot`, { method: 'POST', body: formData });
+      if (!res.ok) throw new Error((await res.json()).detail || `Server error ${res.status}`);
+      const raw = await res.json();
+      data = raw.analysis;
+      data._extracted = raw.extracted_text || raw.ocr_text || '';
+      renderResult(data, type);
+    }
+  } catch(e) {
+    resetResult();
+    showToast('Error: ' + e.message, 'error');
+    console.error(e);
+  } finally {
+    setLoading(type, false);
+  }
+}
+
+// ── RENDER RESULTS ────────────────────────────────────────────────────────────
+function renderResult(data, type) {
+  const risk = (data.risk_level || 'Low').toLowerCase();
+  const score = data.score || 0;
+  const keywords = data.keywords || data.tactics || [];
+  const tips = data.safety_tips || [];
+  const explanation = data.explanation || '';
+  const prediction = data.prediction || '';
+
+  // Hide/show states
+  document.getElementById('idleState').style.display = 'none';
+  document.getElementById('analyzingState').classList.remove('visible');
+  document.getElementById('resultContent').classList.add('visible');
+
+  // Risk header
+  const header = document.getElementById('riskHeader');
+  header.className = `risk-header ${risk}`;
+
+  // Badge
+  const badge = document.getElementById('riskBadge');
+  badge.className = `risk-badge ${risk}`;
+  const icons = { high: '🔴', medium: '🟡', low: '🟢' };
+  badge.innerHTML = `${icons[risk] || '⚪'} ${data.risk_level} Risk`;
+
+  // Score arc animation
+  const circumference = 213.6;
+  const offset = circumference - (score / 100) * circumference;
+  const circle = document.getElementById('scoreCircle');
+  const colors = { high: '#ff1744', medium: '#ff6d00', low: '#00e676' };
+  circle.style.stroke = colors[risk] || '#00e5ff';
+  setTimeout(() => { circle.style.strokeDashoffset = offset; }, 50);
+
+  // Score number animation
+  let current = 0;
+  const target = score;
+  const el = document.getElementById('scoreNumber');
+  const step = () => {
+    current = Math.min(current + Math.ceil(target / 20), target);
+    el.textContent = current;
+    if (current < target) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+
+  document.getElementById('scoreLabel').textContent = `${score} / 100`;
+  document.getElementById('predictionLabel').textContent = prediction;
+
+  // Score bar
+  const bar = document.getElementById('scoreBarFill');
+  bar.className = `score-bar-fill ${risk}`;
+  setTimeout(() => { bar.style.width = score + '%'; }, 100);
+
+  // AI Explanation
+  const expBox = document.getElementById('explanationBox');
+  if (explanation) {
+    expBox.className = 'explanation-box';
+    expBox.textContent = explanation;
+  } else {
+    expBox.className = 'explanation-box loading';
+    expBox.textContent = 'AI explanation unavailable — check Gemini API quota.';
+  }
+
+  // Keywords
+  const kwSection = document.getElementById('keywordsSection');
+  const kwTags = document.getElementById('keywordTags');
+  if (keywords.length > 0) {
+    kwSection.style.display = 'block';
+    kwTags.innerHTML = keywords.map(k =>
+      `<span class="ktag">${k}</span>`
+    ).join('');
+  } else {
+    kwSection.style.display = 'none';
+  }
+
+  // Extracted text (screenshot only)
+  const extSection = document.getElementById('extractedSection');
+  if (type === 'screenshot' && data._extracted) {
+    extSection.style.display = 'block';
+    document.getElementById('extractedText').textContent = data._extracted;
+  } else {
+    extSection.style.display = 'none';
+  }
+
+  // Safety tips
+  const tipsEl = document.getElementById('safetyTips');
+  const tipIcons = ['🔒', '⚠️', '🔍', '📞', '✅'];
+  if (tips.length > 0) {
+    tipsEl.innerHTML = tips.map((tip, i) =>
+      `<div class="tip-item">
+        <span class="tip-icon">${tipIcons[i] || '💡'}</span>
+        <span>${tip}</span>
+      </div>`
+    ).join('');
+  } else {
+    tipsEl.innerHTML = defaultTips(risk).map((tip, i) =>
+      `<div class="tip-item">
+        <span class="tip-icon">${tipIcons[i] || '💡'}</span>
+        <span>${tip}</span>
+      </div>`
+    ).join('');
+  }
+
+  showToast(`Analysis complete — ${data.risk_level} Risk detected`, risk === 'high' ? 'error' : 'success');
+}
+
+function defaultTips(risk) {
+  return [
+    "Never click links in unsolicited messages — go directly to the official website.",
+    "Legitimate banks and organizations never ask for OTPs, passwords, or card numbers via SMS or email.",
+    "Check the sender's email or domain carefully for lookalike characters (e.g. paypa1 vs paypal).",
+    "Enable two-factor authentication on all important accounts for an extra layer of security.",
+    risk === 'high'
+      ? "⚠️ If you already clicked: change your passwords immediately and contact your bank."
+      : "When in doubt, call the company's official number to verify the communication."
+  ];
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type || ''} show`;
+  setTimeout(() => { t.classList.remove('show'); }, 4000);
+}
+
+// ── STAT COUNTER ANIMATION ────────────────────────────────────────────────────
+function animateStat(id, target, suffix) {
+  let v = 0;
+  const el = document.getElementById(id);
+  const step = () => {
+    v = Math.min(v + Math.ceil(target / 40), target);
+    el.textContent = v.toLocaleString() + suffix;
+    if (v < target) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    animateStat('stat1', 2800000, '');
+    animateStat('stat2', 99, '%');
+    animateStat('stat3', 250, 'ms');
+    animateStat('stat4', 3, '');
+  }, 500);
+});
 </script>
 </body>
 </html>
