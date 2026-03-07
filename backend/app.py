@@ -1,38 +1,26 @@
-"""
-PhishNet API
-ML + Rule-based + Claude AI + Screenshot OCR
-"""
-
 import os
 import re
-import time
 import base64
 import pickle
 import pathlib
-from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+import google.generativeai as genai
+
 
 # ================================
-# Claude AI Setup
+# PASTE YOUR GEMINI API KEY HERE
+# Get it free at: aistudio.google.com
 # ================================
 
-try:
-    import anthropic
+GEMINI_API_KEY = "AIzaSyBSUpAmpOON8J2RYWjtJnHeNDGbKzRfT1A"
 
-    _ai_client = anthropic.Anthropic(
-        api_key=os.environ.get("ANTHROPIC_API_KEY", "")
-    )
-
-    _AI_AVAILABLE = bool(os.environ.get("ANTHROPIC_API_KEY"))
-
-except Exception:
-    _ai_client = None
-    _AI_AVAILABLE = False
+genai.configure(api_key=GEMINI_API_KEY)
+AI_AVAILABLE = True
 
 
 # ================================
@@ -61,10 +49,10 @@ except Exception as e:
 
 
 # ================================
-# FastAPI Setup
+# FastAPI setup
 # ================================
 
-app = FastAPI(title="PhishNet API", version="1.0")
+app = FastAPI(title="PhishNet API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -75,93 +63,79 @@ app.add_middleware(
 
 try:
     app.mount("/app", StaticFiles(directory=str(ROOT / "frontend"), html=True))
-except:
-    pass
+except Exception as e:
+    print("Static files not mounted:", e)
 
 
 # ================================
-# Request Schemas
+# Request schemas
 # ================================
 
 class TextRequest(BaseModel):
     message: str
-    lang: str = "en"
-    use_ai: bool = True
 
 
 class URLRequest(BaseModel):
     url: str
-    lang: str = "en"
-    use_ai: bool = True
 
 
 # ================================
-# Utility Functions
+# Gemini OCR — extracts text from image
 # ================================
 
-def risk_bucket(score):
+def extract_text_from_image(img_b64: str, media_type: str) -> str:
+    """Use Gemini Flash (free) to OCR a screenshot and return all visible text."""
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash")
 
-    if score >= 60:
-        return "High"
+        image_part = {
+            "mime_type": media_type,
+            "data": base64.b64decode(img_b64)
+        }
 
-    if score >= 35:
-        return "Medium"
+        response = model.generate_content([
+            "Extract all visible text from this screenshot. Return only the raw text, no commentary.",
+            image_part
+        ])
 
-    return "Low"
+        return response.text.strip()
 
-
-# ================================
-# Claude Vision OCR
-# ================================
-
-def ai_extract_text(img_b64, media_type):
-
-    if not _AI_AVAILABLE:
-        raise HTTPException(503, "Claude AI not available")
-
-    resp = _ai_client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=1000,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": img_b64
-                        }
-                    },
-                    {
-                        "type": "text",
-                        "text": "Extract all visible text from this screenshot exactly as written."
-                    }
-                ]
-            }
-        ]
-    )
-
-    return resp.content[0].text.strip()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OCR failed: {str(e)}")
 
 
 # ================================
-# Root
+# Health check
 # ================================
 
-@app.get("/")
-def root():
-
+@app.get("/health")
+def health():
     return {
-        "status": "PhishNet API running",
-        "ml_ready": ML_READY,
-        "ai_ready": _AI_AVAILABLE
+        "ml": ML_READY,
+        "ai": AI_AVAILABLE
     }
 
 
 # ================================
-# TEXT ANALYSIS
+# Suspicious keyword detection
+# ================================
+
+SUSPICIOUS_WORDS = [
+    "urgent", "verify", "account", "password", "otp",
+    "click", "login", "bank", "suspended", "prize", "lottery"
+]
+
+
+def detect_keywords(text: str) -> list:
+    found = []
+    for w in SUSPICIOUS_WORDS:
+        if re.search(rf"\b{w}\b", text, re.I):
+            found.append(w)
+    return found
+
+
+# ================================
+# Text analysis
 # ================================
 
 @app.post("/analyze-text")
@@ -170,107 +144,72 @@ def analyze_text(req: TextRequest):
     msg = req.message.strip()
 
     if not msg:
-        raise HTTPException(400, "Message cannot be empty")
+        raise HTTPException(400, "Empty message")
 
-    # ML prediction
     ml_score = 50
-    ml_label = "Unknown"
 
     if ML_READY:
-
         vec = VECTORIZER.transform([msg])
-
         prob = TEXT_MODEL.predict_proba(vec)[0][1]
+        ml_score = round(prob * 100)
 
-        ml_score = round(prob * 100, 1)
+    keywords = detect_keywords(msg)
+    rule_score = len(keywords) * 10
+    final_score = min(int(ml_score * 0.6 + rule_score), 100)
 
-        ml_label = "Social Engineering" if prob >= 0.5 else "Legitimate"
-
-    # Rule checks
-    signals = []
-
-    if re.search(r'urgent|immediately|act now', msg, re.I):
-        signals.append("Urgency Pressure")
-
-    if re.search(r'click here|verify|login|update account', msg, re.I):
-        signals.append("Credential Harvesting")
-
-    if re.search(r'won|lottery|prize', msg, re.I):
-        signals.append("Prize Scam")
-
-    rule_score = len(signals) * 10
-
-    final_score = min(round(ml_score * 0.6 + rule_score), 100)
-
-    risk = risk_bucket(final_score)
-
-    explanation = "This message contains patterns associated with phishing."
-
-    if req.use_ai and _AI_AVAILABLE:
-
-        ai_prompt = f"""
-Explain in 2 sentences why this message may be phishing:
-
-{msg}
-"""
-
-        try:
-
-            resp = _ai_client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=200,
-                messages=[{"role": "user", "content": ai_prompt}]
-            )
-
-            explanation = resp.content[0].text.strip()
-
-        except:
-            pass
+    if final_score >= 60:
+        risk = "High"
+    elif final_score >= 35:
+        risk = "Medium"
+    else:
+        risk = "Low"
 
     return {
         "risk_level": risk,
         "score": final_score,
-        "prediction": ml_label,
-        "signals": signals,
-        "ml_score": ml_score,
-        "explanation": explanation
+        "keywords": keywords,
+        "threat_type": "Social Engineering" if final_score >= 50 else "Likely Safe",
+        "confidence": ml_score,
+        "signals": keywords,
+        "analysis_summary": f"Detected {len(keywords)} suspicious indicators commonly used in phishing attacks."
     }
 
 
 # ================================
-# URL ANALYSIS
+# URL analysis
 # ================================
 
 @app.post("/analyze-url")
 def analyze_url(req: URLRequest):
 
-    url = req.url.strip()
-
-    if not url:
-        raise HTTPException(400, "URL cannot be empty")
-
+    url = req.url
     score = 0
     issues = []
 
-    if len(url) > 70:
-        score += 20
-        issues.append("Long URL")
-
     if "@" in url:
         score += 25
-        issues.append("Contains @ symbol")
+        issues.append("Suspicious @ symbol")
+
+    if len(url) > 70:
+        score += 20
+        issues.append("Very long URL")
 
     if re.search(r'\d+\.\d+\.\d+\.\d+', url):
         score += 30
-        issues.append("IP address in URL")
+        issues.append("IP address used")
 
-    if re.search(r'login|verify|secure|account', url, re.I):
-        score += 15
-        issues.append("Suspicious keywords")
+    if re.search(r'login|verify|secure|bank', url, re.I):
+        score += 20
+        issues.append("Phishing keywords")
 
     score = min(score, 100)
 
-    risk = risk_bucket(score)
+    if score >= 60:
+        risk = "High"
+    elif score >= 35:
+        risk = "Medium"
+    else:
+        risk = "Low"
 
     return {
         "risk_level": risk,
@@ -280,64 +219,33 @@ def analyze_url(req: URLRequest):
 
 
 # ================================
-# SCREENSHOT ANALYSIS
+# Screenshot analysis
 # ================================
 
 @app.post("/analyze-screenshot")
 async def analyze_screenshot(file: UploadFile = File(...)):
 
-    start = time.time()
-
     contents = await file.read()
+    img_b64 = base64.b64encode(contents).decode()
 
-    media_type = file.content_type or "image/jpeg"
+    # Fix missing or generic media type
+    media_type = file.content_type
+    if not media_type or media_type == "application/octet-stream":
+        ext = file.filename.lower().split(".")[-1]
+        media_type = {
+            "png": "image/png",
+            "jpg": "image/jpeg",
+            "jpeg": "image/jpeg",
+            "webp": "image/webp"
+        }.get(ext, "image/png")
 
-    img_b64 = base64.b64encode(contents).decode("utf-8")
+    # OCR via Gemini
+    text = extract_text_from_image(img_b64, media_type)
 
-    try:
-
-        extracted_text = ai_extract_text(img_b64, media_type)
-
-    except Exception as e:
-
-        raise HTTPException(500, f"OCR failed: {str(e)}")
-
-    if not extracted_text:
-
-        return {
-            "risk_level": "Low",
-            "score": 0,
-            "extracted_text": "",
-            "explanation": "No text found in screenshot"
-        }
-
-    result = analyze_text(TextRequest(message=extracted_text))
-
-    elapsed = round((time.time() - start) * 1000)
+    # Run phishing analysis on extracted text
+    result = analyze_text(TextRequest(message=text))
 
     return {
-        "extracted_text": extracted_text,
-        "analysis": result,
-        "elapsed_ms": elapsed
-    }
-
-
-# ================================
-# OCR ONLY
-# ================================
-
-@app.post("/ocr")
-async def ocr(file: UploadFile = File(...)):
-
-    contents = await file.read()
-
-    media_type = file.content_type or "image/jpeg"
-
-    img_b64 = base64.b64encode(contents).decode("utf-8")
-
-    text = ai_extract_text(img_b64, media_type)
-
-    return {
-        "text": text,
-        "char_count": len(text)
+        "extracted_text": text,
+        "analysis": result
     }

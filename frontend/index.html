@@ -1,1906 +1,897 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PhishNet — AI Social Engineering Detector</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PhishNet — Threat Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
-:root {
-  --bg:     #04050e;
-  --s1:     #090b18;
-  --s2:     #0e1020;
-  --border: rgba(255,255,255,0.07);
-  --border2:rgba(255,255,255,0.13);
-  --cyan:   #00e5ff;
-  --purple: #7b2fff;
-  --pink:   #ff3cac;
-  --text:   #eeeef8;
-  --muted:  #55567a;
-  --danger: #ff4444;
-  --safe:   #00e5a0;
-  --warn:   #ffd600;
-}
+  :root {
+    --bg: #050810;
+    --surface: #0b0f1a;
+    --panel: #0f1423;
+    --border: rgba(0,255,200,0.12);
+    --cyan: #00ffc8;
+    --purple: #7b61ff;
+    --red: #ff4466;
+    --yellow: #ffd166;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --low: #00ffc8;
+    --medium: #ffd166;
+    --high: #ff4466;
+  }
 
-*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-body {
-  background:var(--bg);
-  color:var(--text);
-  font-family:'Syne', sans-serif;
-  min-height:100vh;
-  overflow-x:hidden;
-}
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
 
-/* ── THREE-GLOW BACKGROUND (original) ──────── */
-body::before {
-  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
-  background:
-    radial-gradient(ellipse 70% 50% at 0%   0%,   rgba(0,229,255,0.07)  0%, transparent 60%),
-    radial-gradient(ellipse 60% 60% at 100% 100%, rgba(123,47,255,0.09) 0%, transparent 60%),
-    radial-gradient(ellipse 40% 40% at 50%  50%,  rgba(255,60,172,0.03) 0%, transparent 70%);
-}
+  /* ── GRID BACKGROUND ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,200,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,200,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
 
-/* ── GRID BACKGROUND (original) ─────────────── */
-body::after {
-  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
-  background-image:
-    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
-  background-size:44px 44px;
-}
+  body::after {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at 30% 20%, rgba(123,97,255,0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 80%, rgba(0,255,200,0.06) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+    animation: aurora 12s ease-in-out infinite alternate;
+  }
 
-.wrap {
-  position:relative; z-index:1;
-  max-width:900px; margin:0 auto;
-  padding:48px 24px 80px;
-}
+  @keyframes aurora {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    100% { transform: translate(2%, 1%) rotate(1deg); }
+  }
 
-/* ── NAV (original exact) ────────────────────── */
-nav {
-  display:flex; align-items:center; justify-content:space-between;
-  margin-bottom:60px;
-}
-.nav-logo {
-  font-size:18px; font-weight:800; letter-spacing:-0.02em;
-  background:linear-gradient(90deg, var(--cyan), var(--purple));
-  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
-}
-.status-chips { display:flex; gap:6px; }
-.chip {
-  display:flex; align-items:center; gap:5px;
-  background:var(--s1); border:1px solid var(--border2);
-  padding:5px 12px; border-radius:100px;
-  font-size:11px; font-family:'DM Mono', monospace;
-}
-.chip-dot { width:6px; height:6px; border-radius:50%; background:var(--muted); }
-.chip-dot.live  { background:var(--safe);  box-shadow:0 0 5px var(--safe);  animation:pulse 2s infinite; }
-.chip-dot.cyan  { background:var(--cyan);  box-shadow:0 0 5px var(--cyan);  animation:pulse 2s infinite; }
-.chip-dot.warn  { background:var(--warn); }
-.chip-dot.error { background:var(--danger); }
+  .wrapper { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 48px 24px 80px; }
 
-/* ── API KEY BANNER ──────────────────────────── */
-.apikey-banner {
-  background:rgba(0,229,255,0.06);
-  border:1px solid rgba(0,229,255,0.2);
-  border-radius:12px; padding:14px 18px;
-  margin-bottom:24px;
-  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-  animation:fadeUp 0.5s ease 0.05s both;
-}
-.apikey-label {
-  font-size:11px; font-family:'DM Mono', monospace;
-  color:var(--muted); white-space:nowrap;
-}
-.apikey-banner input[type=password] {
-  flex:1; min-width:200px; height:38px;
-  background:rgba(0,0,0,0.3); border:1px solid rgba(0,229,255,0.25);
-  border-radius:7px; color:var(--cyan);
-  font-family:'DM Mono', monospace; font-size:12px;
-  padding:8px 12px; outline:none; transition:border-color 0.2s;
-  resize:none;
-}
-.apikey-banner input[type=password]:focus { border-color:rgba(0,229,255,0.6); }
-.apikey-banner input[type=password]::placeholder { color:rgba(0,229,255,0.3); }
-.apikey-save {
-  background:rgba(0,229,255,0.12); border:1px solid rgba(0,229,255,0.3);
-  color:var(--cyan); font-family:'Syne', sans-serif;
-  font-size:12px; font-weight:700;
-  padding:8px 16px; border-radius:7px; cursor:pointer; transition:all 0.18s; white-space:nowrap;
-}
-.apikey-save:hover { background:rgba(0,229,255,0.2); border-color:rgba(0,229,255,0.5); }
-.apikey-status { font-size:11px; font-family:'DM Mono', monospace; padding:3px 9px; border-radius:100px; }
+  /* ── HEADER ── */
+  header { text-align: center; margin-bottom: 56px; }
 
-/* ── HERO (original exact) ───────────────────── */
-.hero { margin-bottom:52px; }
-.hero-badge {
-  display:inline-flex; align-items:center; gap:7px;
-  background:rgba(0,229,255,0.06); border:1px solid rgba(0,229,255,0.18);
-  padding:5px 13px; border-radius:100px;
-  font-size:11px; font-family:'DM Mono', monospace;
-  color:var(--cyan); letter-spacing:0.08em; text-transform:uppercase;
-  margin-bottom:22px;
-}
-.hero h1 {
-  font-size:clamp(2.6rem,7vw,4.8rem); font-weight:800;
-  line-height:1.0; letter-spacing:-0.03em;
-  background:linear-gradient(135deg,#fff 20%,rgba(0,229,255,0.85) 60%,rgba(123,47,255,0.8) 100%);
-  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
-  margin-bottom:16px;
-}
-.hero p { font-size:16px; color:var(--muted); line-height:1.65; max-width:520px; font-weight:400; }
+  .logo-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(0,255,200,0.06); border: 1px solid rgba(0,255,200,0.2);
+    border-radius: 100px; padding: 6px 16px; margin-bottom: 20px;
+    font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cyan);
+    font-family: 'JetBrains Mono', monospace;
+  }
 
-/* ── MODE BAR ────────────────────────────────── */
-.mode-bar {
-  display:none; align-items:center; gap:8px;
-  margin-bottom:20px;
-  font-size:11px; font-family:'DM Mono', monospace; color:var(--muted);
-}
-.mode-indicator {
-  display:flex; align-items:center; gap:5px;
-  padding:4px 11px; border-radius:100px; border:1px solid var(--border);
-  font-size:11px;
-}
-.mode-indicator.backend { border-color:rgba(0,229,160,0.3); color:var(--safe); }
-.mode-indicator.direct  { border-color:rgba(0,229,255,0.3); color:var(--cyan); }
-.mode-indicator.rules   { border-color:var(--border2);      color:var(--muted); }
+  .logo-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); animation: blink 1.4s infinite; }
+  @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
 
-/* ── LANG BAR (original exact) ───────────────── */
-.lang-bar { display:flex; align-items:center; gap:5px; margin-bottom:28px; }
-.lang-label {
-  font-family:'DM Mono', monospace; font-size:10px;
-  color:var(--muted); letter-spacing:0.12em; text-transform:uppercase; margin-right:6px;
-}
-.lang-btn {
-  background:var(--s1); border:1px solid var(--border); color:var(--muted);
-  font-family:'Syne', sans-serif; font-size:12px; font-weight:700;
-  padding:5px 13px; border-radius:6px; cursor:pointer; transition:all 0.18s;
-}
-.lang-btn:hover { border-color:rgba(0,229,255,0.3); color:var(--cyan); }
-.lang-btn.active { background:rgba(0,229,255,0.08); border-color:rgba(0,229,255,0.35); color:var(--cyan); }
+  h1 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: clamp(52px, 9vw, 88px);
+    font-weight: 900;
+    line-height: 0.92;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #ffffff 30%, var(--cyan) 70%, var(--purple) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 16px;
+  }
 
-/* ── TABS (original exact) ───────────────────── */
-.tab-row {
-  display:flex; gap:3px; background:var(--s1);
-  border:1px solid var(--border); padding:5px;
-  border-radius:12px; margin-bottom:20px;
-}
-.tab-btn {
-  flex:1; background:transparent; border:none; color:var(--muted);
-  font-family:'Syne', sans-serif; font-size:14px; font-weight:700;
-  padding:11px 16px; border-radius:8px; cursor:pointer; transition:all 0.18s;
-  display:flex; align-items:center; justify-content:center; gap:7px;
-}
-.tab-btn:hover { color:var(--text); }
-.tab-btn.active { background:var(--s2); color:var(--text); border:1px solid var(--border2); }
-.tab-btn.active svg { color:var(--cyan); }
+  .subtitle { color: var(--muted); font-size: 14px; font-weight: 300; letter-spacing: 0.05em; }
 
-/* ── CARD (original exact) ───────────────────── */
-.card {
-  background:var(--s1); border:1px solid var(--border2);
-  border-radius:16px; padding:28px; margin-bottom:28px;
-  transition:border-color 0.3s;
-}
-.card:hover { border-color:rgba(255,255,255,0.14); }
+  /* ── TABS ── */
+  .tabs {
+    display: flex; gap: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 4px;
+    margin-bottom: 28px;
+  }
 
-.section { display:none; }
-.section.active { display:block; }
+  .tab-btn {
+    flex: 1; padding: 12px 8px;
+    background: transparent; border: none;
+    border-radius: 10px; cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px; font-weight: 500;
+    color: var(--muted);
+    transition: all 0.2s;
+    letter-spacing: 0.04em;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+  }
 
-/* ── INPUTS (original exact) ─────────────────── */
-textarea, input[type=text] {
-  width:100%;
-  background:linear-gradient(135deg,rgba(160,130,255,0.08),rgba(100,80,200,0.05));
-  border:1px solid rgba(160,130,255,0.28);
-  border-radius:10px; color:#ddd8ff;
-  font-family:'DM Mono', monospace; font-size:13px; line-height:1.65;
-  padding:14px 16px; resize:none; outline:none;
-  transition:border-color 0.2s, box-shadow 0.2s;
-}
-textarea { height:140px; }
-input[type=text] { height:50px; }
-textarea:focus, input[type=text]:focus {
-  border-color:rgba(160,130,255,0.6);
-  box-shadow:0 0 0 3px rgba(123,47,255,0.09);
-}
-textarea::placeholder, input[type=text]::placeholder { color:rgba(150,130,200,0.45); font-size:12.5px; }
+  .tab-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .tab-btn.active { background: rgba(0,255,200,0.1); color: var(--cyan); border: 1px solid rgba(0,255,200,0.2); }
 
-/* ── SCREENSHOT UPLOAD ZONE ──────────────────── */
-.upload-zone {
-  width:100%;
-  border:2px dashed rgba(160,130,255,0.3);
-  border-radius:10px; padding:38px 20px;
-  text-align:center; cursor:pointer;
-  background:linear-gradient(135deg,rgba(160,130,255,0.05),rgba(100,80,200,0.03));
-  position:relative; transition:all 0.22s;
-}
-.upload-zone:hover, .upload-zone.dragover {
-  border-color:rgba(0,229,255,0.45);
-  background:rgba(0,229,255,0.035);
-  box-shadow:0 0 0 3px rgba(0,229,255,0.07);
-}
-.upload-zone input[type=file] {
-  position:absolute; inset:0; opacity:0;
-  cursor:pointer; width:100%; height:100%;
-}
-.upload-icon { font-size:36px; display:block; margin-bottom:11px; opacity:0.6; }
-.upload-title {
-  font-size:14px; font-weight:700; color:var(--text); margin-bottom:6px;
-}
-.upload-sub {
-  font-size:11.5px; color:var(--muted); line-height:1.65;
-  font-family:'DM Mono', monospace;
-}
-.upload-sub span { color:var(--cyan); }
+  .tab-btn svg { width: 15px; height: 15px; }
 
-.preview-wrap { display:none; margin-top:16px; position:relative; }
-.preview-img {
-  width:100%; max-height:240px; object-fit:contain;
-  border-radius:9px; border:1px solid var(--border2);
-  background:rgba(255,255,255,0.02);
-}
-.preview-remove {
-  position:absolute; top:8px; right:8px;
-  background:rgba(4,5,14,0.8); border:1px solid var(--border2);
-  color:var(--muted); width:26px; height:26px; border-radius:50%;
-  cursor:pointer; display:flex; align-items:center; justify-content:center;
-  font-size:14px; line-height:1; transition:all 0.18s;
-}
-.preview-remove:hover { background:rgba(255,68,68,0.18); color:var(--danger); border-color:rgba(255,68,68,0.3); }
+  /* ── PANEL ── */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+  }
 
-.ocr-block {
-  display:none; margin-top:12px;
-  background:rgba(0,229,255,0.04); border:1px solid rgba(0,229,255,0.14);
-  border-radius:9px; padding:12px 14px;
-}
-.ocr-block-label {
-  font-family:'DM Mono', monospace; font-size:10px;
-  color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:7px;
-}
-.ocr-block-text {
-  font-family:'DM Mono', monospace; font-size:11.5px;
-  color:rgba(200,210,230,0.62); line-height:1.75;
-  max-height:90px; overflow-y:auto;
-  white-space:pre-wrap; word-break:break-word;
-}
+  .panel::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    opacity: 0.4;
+  }
 
-/* ── ANALYZE BUTTON (original exact) ─────────── */
-.analyze-btn {
-  width:100%; margin-top:14px; padding:15px 24px;
-  background:linear-gradient(135deg,rgba(0,229,255,0.12),rgba(123,47,255,0.14));
-  border:1px solid rgba(0,229,255,0.28); border-radius:10px;
-  color:var(--cyan); font-family:'Syne', sans-serif;
-  font-size:15px; font-weight:700; letter-spacing:0.02em;
-  cursor:pointer; transition:all 0.22s;
-  display:flex; align-items:center; justify-content:center; gap:8px;
-}
-.analyze-btn:hover { border-color:rgba(0,229,255,0.55); transform:translateY(-1px); box-shadow:0 8px 28px rgba(0,229,255,0.1); }
-.analyze-btn:active { transform:translateY(0); }
-.analyze-btn.loading { pointer-events:none; opacity:0.65; }
-.analyze-btn:disabled { opacity:0.4; cursor:not-allowed; transform:none; pointer-events:none; }
-.spinner { width:16px; height:16px; border:2px solid rgba(0,229,255,0.18); border-top-color:var(--cyan); border-radius:50%; animation:spin 0.65s linear infinite; display:none; }
-.loading .spinner { display:block; }
-.loading .btn-txt { display:none; }
+  /* scan line */
+  .panel::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,200,0.005) 2px, rgba(0,255,200,0.005) 4px);
+    pointer-events: none;
+  }
 
-/* ── RESULT (original exact) ─────────────────── */
-#resultBox { margin-top:20px; }
-.result-box { border-radius:12px; overflow:hidden; border:1px solid var(--border); animation:fadeUp 0.4s ease; }
-.result-header { display:flex; align-items:center; gap:10px; padding:12px 16px; font-size:11px; font-family:'DM Mono', monospace; letter-spacing:0.1em; text-transform:uppercase; }
-.rdot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
-.result-score { margin-left:auto; font-size:12px; }
-.result-body { padding:16px 16px 20px; font-size:13.5px; line-height:1.7; color:rgba(230,230,245,0.88); border-top:1px solid var(--border); }
-.verdict { font-weight:800; font-size:16px; margin-bottom:8px; letter-spacing:-0.01em; }
+  .section { display: none; }
+  .section.active { display: block; }
 
-.badges-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
-.ml-badge {
-  display:inline-flex; align-items:center; gap:5px;
-  background:rgba(123,47,255,0.1); border:1px solid rgba(123,47,255,0.25);
-  padding:3px 10px; border-radius:4px;
-  font-size:10px; font-family:'DM Mono', monospace; color:rgba(180,130,255,0.9);
-}
-.source-badge {
-  display:inline-flex; align-items:center; gap:5px;
-  background:rgba(0,229,255,0.07); border:1px solid rgba(0,229,255,0.2);
-  padding:3px 10px; border-radius:4px;
-  font-size:10px; font-family:'DM Mono', monospace; color:rgba(0,229,255,0.75);
-}
-.ocr-badge {
-  display:inline-flex; align-items:center; gap:5px;
-  background:rgba(255,214,0,0.07); border:1px solid rgba(255,214,0,0.2);
-  padding:3px 10px; border-radius:4px;
-  font-size:10px; font-family:'DM Mono', monospace; color:rgba(255,214,0,0.8);
-}
+  /* ── LABELS ── */
+  label.field-label {
+    display: block; font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--cyan); margin-bottom: 8px;
+    font-family: 'JetBrains Mono', monospace;
+  }
 
-.explanation { font-size:13px; opacity:0.82; margin-bottom:12px; line-height:1.7; }
-.tactics { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
-.tag { font-size:10.5px; font-family:'DM Mono', monospace; padding:3px 10px; border-radius:4px; font-weight:500; }
-.risk-bar-wrap { display:flex; align-items:center; gap:10px; margin-top:12px; }
-.risk-bar-track { flex:1; height:6px; background:rgba(255,255,255,0.07); border-radius:3px; overflow:hidden; }
-.risk-bar-fill { height:100%; border-radius:3px; transition:width 0.9s cubic-bezier(0.4,0,0.2,1); }
-.risk-bar-label { font-size:11px; font-family:'DM Mono', monospace; min-width:36px; text-align:right; }
-.tips-inline { margin-top:14px; }
-.tips-inline-title { font-size:10px; font-family:'DM Mono', monospace; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:7px; }
-.tip-item { font-size:12px; color:rgba(200,200,220,0.7); padding:4px 0; border-bottom:1px solid var(--border); display:flex; gap:8px; }
-.tip-item:last-child { border-bottom:none; }
+  /* ── TEXTAREA / INPUT ── */
+  textarea, input[type="text"] {
+    width: 100%; background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px; padding: 14px 16px;
+    color: var(--text); font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px; resize: vertical; outline: none;
+    transition: border-color 0.2s;
+  }
 
-/* Result color themes (original exact) */
-.result-box.danger .result-header { background:rgba(255,68,68,0.08); color:var(--danger); }
-.result-box.danger .rdot  { background:var(--danger); box-shadow:0 0 6px var(--danger); }
-.result-box.danger .tag   { background:rgba(255,68,68,0.1); color:#ff8888; border:1px solid rgba(255,68,68,0.2); }
-.result-box.safe   .result-header { background:rgba(0,229,160,0.08); color:var(--safe); }
-.result-box.safe   .rdot  { background:var(--safe);   box-shadow:0 0 6px var(--safe); }
-.result-box.safe   .tag   { background:rgba(0,229,160,0.1); color:#7dffd0; border:1px solid rgba(0,229,160,0.2); }
-.result-box.warn   .result-header { background:rgba(255,214,0,0.08); color:var(--warn); }
-.result-box.warn   .rdot  { background:var(--warn);   box-shadow:0 0 6px var(--warn); }
-.result-box.warn   .tag   { background:rgba(255,214,0,0.1); color:#ffe566; border:1px solid rgba(255,214,0,0.2); }
-.result-box.info   .result-header { background:rgba(0,229,255,0.06); color:var(--cyan); }
-.result-box.info   .rdot  { background:var(--cyan); animation:pulse 1.4s infinite; }
+  textarea:focus, input[type="text"]:focus {
+    border-color: rgba(0,255,200,0.35);
+    box-shadow: 0 0 0 3px rgba(0,255,200,0.06);
+  }
 
-/* ── THREAT GRID (original exact) ────────────── */
-.tips-section { margin-top:16px; }
-.tips-label { font-size:10px; font-family:'DM Mono', monospace; color:var(--muted); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:12px; }
-.tips-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-.tip-card { background:var(--s1); border:1px solid var(--border); border-radius:12px; padding:16px 14px; transition:border-color 0.2s, transform 0.18s; cursor:default; }
-.tip-card:hover { border-color:rgba(123,47,255,0.3); transform:translateY(-2px); }
-.tip-icon { font-size:22px; margin-bottom:8px; }
-.tip-title { font-size:12px; font-weight:700; color:var(--text); margin-bottom:4px; }
-.tip-desc { font-size:11px; color:var(--muted); line-height:1.5; }
+  textarea { min-height: 120px; }
 
-/* ── FOOTER (original exact) ─────────────────── */
-.footer { text-align:center; margin-top:52px; font-size:11px; font-family:'DM Mono', monospace; color:var(--muted); opacity:0.4; }
+  /* ── DROP ZONE ── */
+  .drop-zone {
+    border: 2px dashed rgba(0,255,200,0.2);
+    border-radius: 14px; padding: 40px 24px;
+    text-align: center; cursor: pointer;
+    transition: all 0.25s; background: rgba(0,255,200,0.02);
+    position: relative;
+  }
 
-/* ── ANIMATIONS (original exact) ─────────────── */
-@keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
-@keyframes pulse  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
-@keyframes spin   { to{transform:rotate(360deg)} }
+  .drop-zone.drag-over {
+    border-color: var(--cyan);
+    background: rgba(0,255,200,0.07);
+    box-shadow: 0 0 30px rgba(0,255,200,0.1);
+  }
 
-@media(max-width:600px) {
-  .tips-grid { grid-template-columns:1fr 1fr; }
-  .tips-grid .tip-card:last-child { grid-column:span 2; }
-  .hero h1 { font-size:2.5rem; }
-  .apikey-banner { flex-direction:column; }
-  .status-chips { display:none; }
-}
+  .drop-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+
+  .drop-icon {
+    width: 48px; height: 48px; margin: 0 auto 14px;
+    background: rgba(0,255,200,0.08); border: 1px solid rgba(0,255,200,0.2);
+    border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    color: var(--cyan);
+  }
+
+  .drop-text-main { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .drop-text-sub { font-size: 12px; color: var(--muted); }
+
+  /* ── PREVIEW ── */
+  #imgPreviewWrap { display: none; margin-top: 18px; }
+
+  #imgPreviewWrap img {
+    max-width: 100%; max-height: 220px; border-radius: 10px;
+    border: 1px solid var(--border); object-fit: contain;
+  }
+
+  .preview-meta {
+    display: flex; align-items: center; gap: 10px; margin-top: 10px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted);
+  }
+
+  /* ── BUTTON ── */
+  .btn {
+    margin-top: 20px; width: 100%; padding: 14px 24px;
+    background: linear-gradient(135deg, rgba(0,255,200,0.15), rgba(123,97,255,0.15));
+    border: 1px solid rgba(0,255,200,0.3); border-radius: 10px;
+    color: var(--cyan); font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+
+  .btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(0,255,200,0.25), rgba(123,97,255,0.25));
+    box-shadow: 0 0 24px rgba(0,255,200,0.2);
+    transform: translateY(-1px);
+  }
+
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* ── SPINNER ── */
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(0,255,200,0.3);
+    border-top-color: var(--cyan);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── RESULT BOX ── */
+  .result-box {
+    margin-top: 24px; padding: 20px 22px;
+    background: var(--surface); border-radius: 14px;
+    border: 1px solid var(--border);
+    display: none; animation: fadeUp 0.35s ease;
+  }
+
+  .result-box.visible { display: block; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .risk-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .risk-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 32px; font-weight: 900; letter-spacing: 0.02em; text-transform: uppercase;
+  }
+
+  .risk-label.low    { color: var(--low); text-shadow: 0 0 20px rgba(0,255,200,0.4); }
+  .risk-label.medium { color: var(--medium); text-shadow: 0 0 20px rgba(255,209,102,0.4); }
+  .risk-label.high   { color: var(--high); text-shadow: 0 0 20px rgba(255,68,102,0.4); }
+
+  .risk-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; padding: 4px 10px;
+    border-radius: 6px; font-weight: 500;
+  }
+
+  .risk-badge.low    { background: rgba(0,255,200,0.1);  color: var(--low);    border: 1px solid rgba(0,255,200,0.25);  }
+  .risk-badge.medium { background: rgba(255,209,102,0.1); color: var(--medium); border: 1px solid rgba(255,209,102,0.25); }
+  .risk-badge.high   { background: rgba(255,68,102,0.1);  color: var(--high);   border: 1px solid rgba(255,68,102,0.25);  }
+
+  /* Score bar */
+  .score-bar-wrap { margin-bottom: 14px; }
+  .score-bar-label { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-bottom: 6px; letter-spacing: 0.08em; }
+  .score-bar-bg { height: 6px; background: rgba(255,255,255,0.06); border-radius: 99px; overflow: hidden; }
+  .score-bar-fill {
+    height: 100%; width: 0; border-radius: 99px;
+    transition: width 0.9s cubic-bezier(0.22,1,0.36,1);
+  }
+  .score-bar-fill.low    { background: linear-gradient(90deg, rgba(0,255,200,0.6), var(--low)); }
+  .score-bar-fill.medium { background: linear-gradient(90deg, rgba(255,209,102,0.6), var(--medium)); }
+  .score-bar-fill.high   { background: linear-gradient(90deg, rgba(255,68,102,0.6), var(--high)); }
+
+  .meta-row { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .meta-row span { color: var(--text); font-weight: 500; }
+
+  /* ── OCR TEXT BOX ── */
+  .ocr-block {
+    margin-top: 14px; padding: 14px;
+    background: rgba(0,0,0,0.3); border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.05);
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    color: #8fa0b8; line-height: 1.7; max-height: 140px; overflow-y: auto;
+    white-space: pre-wrap; word-break: break-word;
+  }
+
+  /* ── AUTO URL SECTION ── */
+  .url-extract-section {
+    margin-top: 20px;
+    border-top: 1px solid rgba(0,255,200,0.1);
+    padding-top: 18px;
+  }
+
+  .url-extract-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--cyan); letter-spacing: 0.12em;
+    text-transform: uppercase; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .url-extract-title::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--cyan); animation: blink 1s infinite;
+  }
+
+  /* individual extracted URL card */
+  .url-card {
+    background: var(--bg); border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 10px;
+    transition: border-color 0.2s;
+  }
+
+  .url-card:last-child { margin-bottom: 0; }
+
+  .url-card-top {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 12px; margin-bottom: 8px;
+  }
+
+  .url-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: var(--purple); word-break: break-all; flex: 1;
+  }
+
+  .url-scan-status {
+    font-size: 11px; font-family: 'JetBrains Mono', monospace;
+    white-space: nowrap; padding: 3px 8px; border-radius: 6px;
+  }
+
+  .url-scan-status.scanning {
+    background: rgba(123,97,255,0.12); color: var(--purple);
+    border: 1px solid rgba(123,97,255,0.25); animation: pulse 1s infinite;
+  }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .url-scan-status.low    { background: rgba(0,255,200,0.08);  color: var(--low);    border: 1px solid rgba(0,255,200,0.2); }
+  .url-scan-status.medium { background: rgba(255,209,102,0.08); color: var(--medium); border: 1px solid rgba(255,209,102,0.2); }
+  .url-scan-status.high   { background: rgba(255,68,102,0.08);  color: var(--high);   border: 1px solid rgba(255,68,102,0.2); }
+
+  .url-score-bar-bg {
+    height: 4px; background: rgba(255,255,255,0.05);
+    border-radius: 99px; overflow: hidden;
+  }
+
+  .url-score-bar-fill {
+    height: 100%; width: 0; border-radius: 99px;
+    transition: width 0.8s cubic-bezier(0.22,1,0.36,1);
+  }
+
+  .url-score-bar-fill.low    { background: var(--low);    }
+  .url-score-bar-fill.medium { background: var(--medium); }
+  .url-score-bar-fill.high   { background: var(--high);   }
+
+  .url-prediction {
+    font-size: 11px; color: var(--muted); margin-top: 6px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .no-urls-note {
+    font-size: 12px; color: var(--muted); font-family: 'JetBrains Mono', monospace;
+    text-align: center; padding: 12px 0;
+  }
+
+  /* ── ERROR ── */
+  .error-msg {
+    margin-top: 14px; padding: 12px 16px;
+    background: rgba(255,68,102,0.08); border: 1px solid rgba(255,68,102,0.25);
+    border-radius: 8px; color: var(--red); font-size: 13px;
+    font-family: 'JetBrains Mono', monospace; display: none;
+  }
+
+  .error-msg.visible { display: block; }
+
+  /* ── THREAT CARDS ── */
+  .threat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px; margin-top: 48px;
+  }
+
+  .threat-card {
+    background: var(--surface);
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px;
+    transition: all 0.25s;
+  }
+
+  .threat-card:hover { border-color: rgba(0,255,200,0.25); transform: translateY(-2px); }
+
+  .threat-card-icon {
+    width: 38px; height: 38px; border-radius: 9px; margin-bottom: 12px;
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+
+  .threat-card h4 {
+    font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text);
+  }
+
+  .threat-card p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,255,200,0.2); border-radius: 99px; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrapper">
 
-  <!-- NAV -->
-  <nav>
-    <div class="nav-logo">🛡 PhishNet</div>
-    <div class="status-chips">
-      <div class="chip"><span class="chip-dot" id="mlDot"></span><span id="mlText" style="color:var(--muted)">ML</span></div>
-      <div class="chip"><span class="chip-dot" id="aiDot"></span><span id="aiText" style="color:var(--muted)">AI</span></div>
-    </div>
-  </nav>
-
-  <!-- API KEY BANNER -->
-  <div class="apikey-banner" id="apikeyBanner">
-    <span class="apikey-label">🔑 API Key</span>
-    <input type="password" id="apikeyInput" placeholder="Paste your Anthropic API key (sk-ant-api03-…)">
-    <button class="apikey-save" onclick="saveApiKey()">Connect AI</button>
-    <span id="apikeyStatus" class="apikey-status"></span>
-  </div>
-
-  <!-- HERO -->
+  <!-- HEADER -->
+  <header>
+    <div class="logo-badge">PhishNet· Threat Intelligence v2.0</div>
+    <h1>Social-Engineering<br/>Detector</h1>
+    <p class="subtitle">AI-powered threat analysis · Text · URL · Screenshot</p>
+  </header>
+  
   <div class="hero">
-    <div class="hero-badge">
-      <span style="width:6px;height:6px;border-radius:50%;background:var(--cyan);display:inline-block;animation:pulse 2s infinite"></span>
-      AI Security Model v4.0 · OCR-Enabled
+    <div class="info-box">
+
+      <h2>What is Social Engineering?</h2>
+
+      <p>
+      Social engineering is a cyberattack technique where attackers manipulate people into revealing
+      sensitive information such as passwords, banking details, or OTPs. Instead of hacking systems,
+      they exploit human psychology using tactics like urgency, fear, authority impersonation, or
+      fake rewards.
+      </p>
+
+      <p>
+      PhishNet analyzes messages, URLs, and screenshots to detect these manipulation patterns and
+      alert users before they fall victim to phishing or fraud.
+      </p>
+
     </div>
-    <h1>Detect Threats<br>Before They Strike</h1>
-    <p>Powered by ML + Claude AI. Analyze messages, URLs, or screenshots for phishing, social engineering, and manipulation tactics — in real time.</p>
-  </div>
+    <h1>Detect Threats Before They Strike</h1>
 
-  <!-- MODE INDICATOR -->
-  <div class="mode-bar" id="modeBar">
-    <span>Analysis mode:</span>
-    <span class="mode-indicator" id="modeIndicator"></span>
-  </div>
+   <p>Powered by Claude AI + ML. Analyze messages and URLs for phishing and manipulation tactics.</p>
 
-  <!-- LANG -->
-  <div class="lang-bar">
-    <span class="lang-label">Language</span>
-    <button class="lang-btn active" onclick="setLang('en')">EN</button>
-    <button class="lang-btn" onclick="setLang('hi')">हि</button>
-    <button class="lang-btn" onclick="setLang('kn')">ಕ</button>
-  </div>
-
+</div>
   <!-- TABS -->
-  <div class="tab-row">
-    <button class="tab-btn active" id="tabMsg" onclick="showTab('text')">
-      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('text')" id="tab-text">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6M9 8h6M9 16h4M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z"/></svg>
       Message Analysis
     </button>
-    <button class="tab-btn" id="tabUrl" onclick="showTab('url')">
-      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+    <button class="tab-btn" onclick="showTab('url')" id="tab-url">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
       URL Scanner
     </button>
-    <button class="tab-btn" id="tabImg" onclick="showTab('screenshot')">
-      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+    <button class="tab-btn" onclick="showTab('screenshot')" id="tab-screenshot">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
       Screenshot
     </button>
   </div>
 
-  <!-- MAIN CARD -->
-  <div class="card">
+  <!-- PANEL -->
+  <div class="panel">
 
-    <!-- MESSAGE TAB -->
-    <div id="textSection" class="section active">
-      <textarea id="messageInput" placeholder="Paste a suspicious message, email, or SMS here…&#10;&#10;e.g. URGENT: Your account will be suspended in 24 hours. Click here to verify immediately."></textarea>
-      <button class="analyze-btn" id="analyzeTextBtn" onclick="analyzeText()">
-        <div class="spinner"></div>
-        <span class="btn-txt">
-          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" style="vertical-align:-3px;margin-right:5px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          Analyze Message
-        </span>
+    <!-- TEXT SECTION -->
+    <div class="section active" id="textSection">
+      <label class="field-label">Suspicious Message</label>
+      <textarea id="messageInput" placeholder="Paste a suspicious message, email content, or phishing text here…"></textarea>
+      <div class="error-msg" id="textError"></div>
+      <button class="btn" id="textBtn" onclick="analyzeText()">
+        <div class="spinner" id="textSpinner"></div>
+        <span id="textBtnLabel">Analyze Message</span>
       </button>
+      <div class="result-box" id="textResult"></div>
     </div>
 
-    <!-- URL TAB -->
-    <div id="urlSection" class="section">
-      <input type="text" id="urlInput" placeholder="Paste a suspicious URL or link here… e.g. http://secure-paypal.verify-login.ru/account">
-      <button class="analyze-btn" id="analyzeUrlBtn" onclick="analyzeURL()">
-        <div class="spinner"></div>
-        <span class="btn-txt">
-          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" style="vertical-align:-3px;margin-right:5px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          Scan URL
-        </span>
+    <!-- URL SECTION -->
+    <div class="section" id="urlSection">
+      <label class="field-label">Suspicious URL</label>
+      <input type="text" id="urlInput" placeholder="https://suspicious-login.com/verify?token=abc123…"/>
+      <div class="error-msg" id="urlError"></div>
+      <button class="btn" id="urlBtn" onclick="analyzeURL()">
+        <div class="spinner" id="urlSpinner"></div>
+        <span id="urlBtnLabel">Scan URL</span>
       </button>
+      <div class="result-box" id="urlResult"></div>
     </div>
 
-    <!-- SCREENSHOT TAB -->
-    <div id="screenshotSection" class="section">
+    <!-- SCREENSHOT SECTION -->
+    <div class="section" id="screenshotSection">
+      <label class="field-label">Upload Screenshot</label>
 
-      <div class="upload-zone" id="uploadZone">
-        <input type="file" id="fileInput" accept="image/*" onchange="handleFile(event)">
-        <span class="upload-icon">📷</span>
-        <div class="upload-title">Drop screenshot here, click to browse, or Ctrl+V to paste</div>
-        <div class="upload-sub">
-          JPG · PNG · WEBP supported<br>
-          <span>Image stays in your browser — only the extracted text is analyzed</span>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="screenshotInput" accept="image/*" onchange="previewImage(event)"/>
+        <div class="drop-icon">
+          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <div class="drop-text-main">Drop screenshot here or click to browse</div>
+        <div class="drop-text-sub">PNG, JPG, WEBP · Max 10MB</div>
+      </div>
+
+      <div id="imgPreviewWrap">
+        <img id="imgPreview" src="" alt="Preview"/>
+        <div class="preview-meta">
+          <span id="previewFileName"></span>
+          <span>·</span>
+          <span id="previewFileSize"></span>
         </div>
       </div>
 
-      <div class="preview-wrap" id="previewWrap">
-        <img id="previewImg" class="preview-img" src="" alt="Screenshot preview">
-        <button class="preview-remove" onclick="removeImage()">✕</button>
-      </div>
-
-      <div class="ocr-block" id="ocrBlock">
-        <div class="ocr-block-label">📝 Extracted Text</div>
-        <div class="ocr-block-text" id="ocrText"></div>
-      </div>
-
-      <button class="analyze-btn" id="analyzeImgBtn" onclick="analyzeScreenshot()" disabled>
-        <div class="spinner"></div>
-        <span class="btn-txt">
-          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" style="vertical-align:-3px;margin-right:5px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-          Analyze Screenshot
-        </span>
+      <div class="error-msg" id="screenshotError"></div>
+      <button class="btn" id="screenshotBtn" onclick="analyzeScreenshot()">
+        <div class="spinner" id="screenshotSpinner"></div>
+        <span id="screenshotBtnLabel">Analyze Screenshot</span>
       </button>
+      <div class="result-box" id="screenshotResult"></div>
     </div>
 
-    <!-- RESULT OUTPUT (shared) -->
-    <div id="resultBox"></div>
-  </div>
+  </div><!-- /panel -->
 
-  <!-- THREAT TYPE GRID -->
-  <div class="tips-section">
-    <div class="tips-label">Threat Types Detected</div>
-    <div class="tips-grid">
-      <div class="tip-card"><div class="tip-icon">🎣</div><div class="tip-title">Phishing</div><div class="tip-desc">Fake pages designed to steal your credentials and personal data.</div></div>
-      <div class="tip-card"><div class="tip-icon">🔗</div><div class="tip-title">Malicious Links</div><div class="tip-desc">URLs crafted to redirect you to harmful or fraudulent sites.</div></div>
-      <div class="tip-card"><div class="tip-icon">⚠️</div><div class="tip-title">Social Engineering</div><div class="tip-desc">Psychological manipulation using urgency, fear, or reward bait.</div></div>
-      <div class="tip-card"><div class="tip-icon">🏦</div><div class="tip-title">KYC / Bank Fraud</div><div class="tip-desc">Fake KYC update requests or bank impersonation attacks.</div></div>
-      <div class="tip-card"><div class="tip-icon">🎁</div><div class="tip-title">Reward Scams</div><div class="tip-desc">Fake prizes, lottery wins, and "you've been selected" traps.</div></div>
-      <div class="tip-card"><div class="tip-icon">📸</div><div class="tip-title">Screenshot Threats</div><div class="tip-desc">Analyze forwarded screenshots without clicking the original link.</div></div>
+  <!-- THREAT TYPE CARDS -->
+  <div class="threat-grid">
+    <div class="threat-card">
+      <div class="threat-card-icon" style="background:rgba(255,68,102,0.1);color:var(--red)">🎣</div>
+      <h4>Credential Phishing</h4>
+      <p>Fake login pages harvesting usernames and passwords.</p>
+    </div>
+    <div class="threat-card">
+      <div class="threat-card-icon" style="background:rgba(255,209,102,0.1);color:var(--yellow)">📧</div>
+      <h4>Email Spoofing</h4>
+      <p>Forged sender addresses impersonating trusted entities.</p>
+    </div>
+    <div class="threat-card">
+      <div class="threat-card-icon" style="background:rgba(123,97,255,0.1);color:var(--purple)">🔗</div>
+      <h4>Malicious URLs</h4>
+      <p>Obfuscated links redirecting to malware or scam sites.</p>
+    </div>
+    <div class="threat-card">
+      <div class="threat-card-icon" style="background:rgba(0,255,200,0.1);color:var(--cyan)">📱</div>
+      <h4>Smishing / Vishing</h4>
+      <p>SMS and voice-based social engineering attacks.</p>
     </div>
   </div>
 
-  <div class="footer">phishnet v4.0 · ml + claude ai + ocr · social engineering detector</div>
-</div>
+</div><!-- /wrapper -->
 
 <script>
-// ── CONFIG ─────────────────────────────────────────────────────────────────
-const BACKEND   = 'http://localhost:8000';
-const LANG_MAP  = { en:'English', hi:'Hindi', kn:'Kannada' };
-const SAFETY_TIPS = [
-  'Do not click links from unknown or suspicious messages.',
-  'Verify the sender\'s identity before responding.',
-  'Never share passwords, OTPs, or banking details with anyone.',
-];
+  const API_URL = "http://127.0.0.1:8000";
 
-let currentLang    = 'en';
-let apiKey         = localStorage.getItem('pn_apikey') || '';
-let backendOnline  = false;
-let uploadedB64    = null;
-let uploadedMime   = 'image/jpeg';
-let extractedText  = '';
-
-// ── SMART LOCAL RULES (works fully offline) ────────────────────────────────
-const LEGIT_RE = [
-  /Rs\.?\s*\d+.*(?:debited|credited|transferred)/i,
-  /UPI\s*(?:txn|ref|transaction)\s*(?:no|number|id)?\.?\s*[:#]?\s*\d{6,}/i,
-  /(?:debited|credited)\s*(?:from|to)\s*(?:account|a\/c|VPA)/i,
-  /OTP\s*(?:for|is|:)\s*\d{4,8}/i,
-  /\d{4,8}\s*is\s*(?:your|the)\s*(?:otp|one.time)/i,
-  /Avl\s*Bal\s*INR/i,
-  /a\/c\s*(?:no\.?)?\s*[xX*]+\d{4}/i,
-  /\b(?:NEFT|RTGS|IMPS|NACH)\b/i,
-];
-const STRONG_PHISH_RE = [
-  /click\s*(?:here|this\s*link|now)\s*(?:to\s*)?(?:verify|confirm|update|login|reset|claim)/i,
-  /your\s*account\s*(?:will\s*be|has\s*been)\s*(?:suspended|blocked|terminated|closed|deleted)/i,
-  /you\s*(?:have\s*)?(?:won|been\s*selected)\s*(?:a\s*)?(?:prize|gift|\$[\d,]+)/i,
-  /claim\s*your\s*(?:prize|reward|gift|winnings)\s*(?:now|immediately)/i,
-  /(?:FIR|CBI|TRAI|police)\s*registered.*(?:number|account|you)/i,
-  /your\s*(?:password|credentials)\s*(?:has\s*been\s*compromised|were\s*exposed)/i,
-  /(?:microsoft|apple|google)\s*support\s*(?:immediately|now|urgently)/i,
-  /send\s*(?:your\s*)?(?:otp|password|pin|cvv)/i,
-  /share\s*(?:your\s*)?(?:otp|password|pin)/i,
-];
-const TACTIC_RULES = [
-  { re:/urgent|act fast|deadline|24.hour|expires?\s*(?:today|now)/i, label:'Urgency',               wl:/otp.*expir|valid.*\d+\s*min/i },
-  { re:/suspend|block|arrest|penalty|fine|lose access|legal action/i, label:'Fear \/ Threat',       wl:/debited|credited|balance|transaction/i },
-  { re:/\bwon\b|winner|prize|gift|reward|claim|congratulation/i,      label:'Reward Bait',          wl:/cashback\s*credited|reward\s*points\s*earned/i },
-  { re:/click\s*here.*(?:verify|login|reset)|verify\s*your\s*(?:account|identity|kyc)/i, label:'Credential Harvesting', wl:/otp|transaction|debit|credit|VPA/i },
-  { re:/kyc\s*(?:incomplete|pending|update)|update\s*kyc/i,           label:'KYC Fraud',            wl:null },
-  { re:/send\s*(?:your\s*)?otp|share\s*(?:your\s*)?otp/i,             label:'OTP Theft Attempt',    wl:null },
-];
-
-function localScore(text) {
-  const isLegit  = LEGIT_RE.some(r => r.test(text));
-  const isStrong = STRONG_PHISH_RE.some(r => r.test(text));
-  const tactics  = TACTIC_RULES.filter(c => c.re.test(text) && !(c.wl && c.wl.test(text))).map(c => c.label);
-  let score = isStrong ? 65 + tactics.length*5 : isLegit ? 8 + tactics.length*3 : 22 + tactics.length*12;
-  score = Math.min(score, 100);
-  const risk = score >= 60 ? 'High' : score >= 35 ? 'Medium' : 'Low';
-  const expl = isLegit && !isStrong
-    ? 'This matches a legitimate transactional notification (UPI/OTP/bank alert). No deceptive patterns detected.'
-    : isStrong ? 'Contains high-confidence phishing indicators — credential requests, threats, or deceptive link prompts.'
-    : tactics.length ? `Contains ${tactics.length} suspicious tactic(s): ${tactics.join(', ')}.`
-    : 'No significant threat indicators detected.';
-  return { score, risk_level:risk, tactics:tactics.length?tactics:['No clear tactics detected'], explanation:expl, is_legitimate:isLegit&&!isStrong };
-}
-
-function localScoreURL(url) {
-  const PHISH_KW = ['login','verify','update','secure','account','confirm','password','signin','kyc'];
-  const BAD_TLDS = ['.ru','.cn','.tk','.ml','.ga','.cf','.gq','.xyz','.top','.pw','.cc'];
-  let parsed; try { parsed = new URL(url); } catch { parsed = {hostname:'',pathname:'',protocol:''}; }
-  const issues=[]; let score=0;
-  if (url.length > 75)                              { score+=15; issues.push('Unusually long URL'); }
-  if (parsed.protocol !== 'https:')                 { score+=20; issues.push('No HTTPS'); }
-  if (url.includes('@'))                            { score+=25; issues.push('@ symbol (redirect trick)'); }
-  if (/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(parsed.hostname)) { score+=30; issues.push('IP address instead of domain'); }
-  if ((url.match(/\./g)||[]).length > 4)            { score+=15; issues.push('Excessive subdomains'); }
-  if ((url.match(/-/g)||[]).length > 3)             { score+=10; issues.push('Excessive hyphens'); }
-  if (PHISH_KW.some(k => url.toLowerCase().includes(k))) { score+=20; issues.push('Phishing keywords in URL'); }
-  if (BAD_TLDS.some(t => url.toLowerCase().includes(t)))  { score+=25; issues.push('Suspicious TLD'); }
-  if ((url.split('//').length-1) > 1)               { score+=10; issues.push('Double-slash redirect'); }
-  score = Math.min(score, 100);
-  return { risk_level:score>=60?'High':score>=30?'Medium':'Low', score, issues:issues.length?issues:['No major issues detected'], explanation:'Analyzed using URL structure rules.' };
-}
-
-// ── CLAUDE AI DIRECT CALLS ─────────────────────────────────────────────────
-function claudeHeaders() {
-  return { 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' };
-}
-
-async function callClaudeText(msg) {
-  if (!apiKey) throw new Error('no_key');
-  const lang  = LANG_MAP[currentLang]||'English';
-  const local = localScore(msg);
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method:'POST', headers:claudeHeaders(),
-    body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600, messages:[{ role:'user', content:
-`You are a cybersecurity expert specializing in phishing and social engineering detection.
-
-CRITICAL: Real bank/UPI alerts (debits, credits, OTPs, balance notifications, NEFT/RTGS/IMPS) are LEGITIMATE. Only flag as dangerous if the message tries to TRICK the user into clicking a link, calling a number, or sharing credentials.
-
-Reply ONLY as valid JSON (no markdown, no explanation outside JSON):
-{"risk_level":"High"|"Medium"|"Low","score":0-100,"tactics":["..."],"explanation":"2 sentences in ${lang}"}
-
-Message: """${msg.slice(0,700)}"""`
-    }] })
-  });
-  if (!res.ok) { const e=await res.json().catch(()=>{}); throw new Error(e?.error?.message||`API ${res.status}`); }
-  const data = await res.json();
-  const raw  = data.content?.map(b=>b.text||'').join('')||'{}';
-  const parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
-  if (local.is_legitimate) { parsed.score=Math.min(parsed.score||0,25); parsed.risk_level='Low'; }
-  return { ...parsed, safety_tips:SAFETY_TIPS, source:'Claude AI', ml_used:false };
-}
-
-async function callClaudeURL(url) {
-  if (!apiKey) throw new Error('no_key');
-  const local = localScoreURL(url);
-  const lang  = LANG_MAP[currentLang]||'English';
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method:'POST', headers:claudeHeaders(),
-    body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:400, messages:[{ role:'user', content:
-`Cybersecurity expert. Analyze URL for phishing. Reply ONLY as valid JSON:
-{"risk_level":"High"|"Medium"|"Low","score":0-100,"issues":["..."],"explanation":"2 sentences in ${lang}"}
-URL: ${url}
-Local pre-scan: score=${local.score}, issues=${local.issues.join(', ')}`
-    }] })
-  });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  const data = await res.json();
-  const parsed = JSON.parse(data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim());
-  return { ...parsed, safety_tips:SAFETY_TIPS, source:'Claude AI' };
-}
-
-async function claudeExtractText(b64, mime) {
-  if (!apiKey) throw new Error('no_key');
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method:'POST', headers:claudeHeaders(),
-    body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:900, messages:[{ role:'user', content:[
-      { type:'image', source:{ type:'base64', media_type:mime, data:b64 } },
-      { type:'text',  text:'Extract ALL visible text from this screenshot exactly as it appears. Include sender info, message body, URLs, button text, and any other visible text. Output ONLY the raw extracted text, nothing else.' }
-    ]}] })
-  });
-  if (!res.ok) throw new Error(`Vision API ${res.status}`);
-  const data = await res.json();
-  return data.content.map(b=>b.text||'').join('').trim();
-}
-
-// ── BACKEND CALLS ──────────────────────────────────────────────────────────
-async function tryBackend(endpoint, body) {
-  const r = await fetch(BACKEND+endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body), signal:AbortSignal.timeout(7000) });
-  if (!r.ok) throw new Error('backend_error');
-  const d = await r.json(); d.source='ML + Claude AI'; return d;
-}
-
-// ── HEALTH CHECK ───────────────────────────────────────────────────────────
-async function checkHealth() {
-  if (apiKey) {
-    document.getElementById('apikeyInput').value = '••••••••••••••••';
-    document.getElementById('apikeyStatus').textContent = '✓ Key saved';
-    document.getElementById('apikeyStatus').style.color = 'var(--safe)';
-  }
-  try {
-    const r = await fetch(BACKEND+'/health', { signal:AbortSignal.timeout(2500) });
-    const d = await r.json();
-    backendOnline = true;
-    setChip('mlDot','mlText', d.ml?'live':'warn', d.ml?'ML ✓':'ML ✗', d.ml?'var(--safe)':'var(--warn)');
-    setChip('aiDot','aiText', d.ai?'live':'warn', d.ai?'AI ✓':'AI ✗', d.ai?'var(--safe)':'var(--warn)');
-    showMode('backend','🖥 Backend + ML + AI');
-  } catch {
-    backendOnline = false;
-    setChip('mlDot','mlText','','ML offline','var(--muted)');
-    if (apiKey) { setChip('aiDot','aiText','cyan','AI ✓','var(--cyan)'); showMode('direct','🤖 Claude AI Direct'); }
-    else        { setChip('aiDot','aiText','','AI offline','var(--muted)'); document.getElementById('modeBar').style.display='none'; }
-  }
-}
-
-function setChip(dotId, txtId, cls, txt, color) {
-  document.getElementById(dotId).className = 'chip-dot'+(cls?' '+cls:'');
-  const el = document.getElementById(txtId);
-  el.textContent=txt; el.style.color=color;
-}
-
-function showMode(type, label) {
-  const bar=document.getElementById('modeBar'), ind=document.getElementById('modeIndicator');
-  bar.style.display='flex'; ind.className='mode-indicator '+type; ind.textContent=label;
-}
-
-// ── API KEY ────────────────────────────────────────────────────────────────
-function saveApiKey() {
-  const val = document.getElementById('apikeyInput').value.trim();
-  if (!val||val.startsWith('•')) return;
-  if (!val.startsWith('sk-ant-')) { alert('That doesn\'t look like an Anthropic API key (should start with sk-ant-)'); return; }
-  apiKey = val;
-  localStorage.setItem('pn_apikey', val);
-  document.getElementById('apikeyInput').value = '••••••••••••••••';
-  document.getElementById('apikeyStatus').textContent = '✓ Connected';
-  document.getElementById('apikeyStatus').style.color = 'var(--safe)';
-  setChip('aiDot','aiText','cyan','AI ✓','var(--cyan)');
-  if (!backendOnline) showMode('direct','🤖 Claude AI Direct');
-  // Retry OCR if screenshot is already loaded and waiting
-  if (uploadedB64 && !extractedText) runOCR();
-}
-
-// ── UI HELPERS ─────────────────────────────────────────────────────────────
-function setLang(l) {
-  currentLang = l;
-  document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector(`.lang-btn[onclick="setLang('${l}')"]`).classList.add('active');
-}
-
-function showTab(t) {
-  ['text','url','screenshot'].forEach(s => {
-    document.getElementById(s==='text'?'textSection':s==='url'?'urlSection':'screenshotSection').classList.toggle('active',s===t);
-  });
-  document.getElementById('tabMsg').classList.toggle('active',t==='text');
-  document.getElementById('tabUrl').classList.toggle('active',t==='url');
-  document.getElementById('tabImg').classList.toggle('active',t==='screenshot');
-  document.getElementById('resultBox').innerHTML='';
-}
-
-function setLoading(id,on) { const b=document.getElementById(id); b.classList.toggle('loading',on); b.disabled=on; }
-
-function showInfo(msg) {
-  document.getElementById('resultBox').innerHTML=`<div class="result-box info"><div class="result-header"><span class="rdot"></span>${msg}</div></div>`;
-}
-function showError(msg) {
-  document.getElementById('resultBox').innerHTML=`<div class="result-box warn"><div class="result-header"><span class="rdot"></span>ERROR</div><div class="result-body" style="font-size:13px;opacity:0.8">${msg}</div></div>`;
-}
-
-// ── RENDER RESULT ──────────────────────────────────────────────────────────
-function renderResult(data, type) {
-  const box     = document.getElementById('resultBox');
-  const isH     = data.risk_level==='High', isM=data.risk_level==='Medium';
-  const cssType = isH?'danger':isM?'warn':'safe';
-  const emoji   = isH?'🔴':isM?'🟡':'🟢';
-  const label   = isH?'HIGH RISK — THREAT DETECTED':isM?'SUSPICIOUS — REVIEW CAREFULLY':'SAFE — NO THREATS FOUND';
-  const barColor= isH?'#ff4444':isM?'#ffd600':'#00e5a0';
-
-  const items    = [...(data.tactics||[]),...(data.issues||[])].filter(i=>i&&!i.includes('No clear')&&!i.includes('No major'));
-  const tagsHtml = items.map(t=>`<span class="tag">${t}</span>`).join('');
-
-  const mlHtml  = (data.ml_used&&data.ml_score!=null) ? `<div class="ml-badge">🤖 ML: ${data.ml_score}% · Conf: ${data.ml_confidence}%</div>` : '';
-  const srcHtml = data.source ? `<span class="source-badge">⚡ ${data.source}</span>` : '';
-  const ocrHtml = (type==='Screenshot') ? `<span class="ocr-badge">📝 OCR Extracted</span>` : '';
-
-  const tipsHtml = (data.safety_tips||SAFETY_TIPS).slice(0,3).map(t=>`<div class="tip-item"><span style="color:var(--cyan)">›</span>${t}</div>`).join('');
-  const barId = 'rbf'+Date.now();
-
-  box.innerHTML = `
-    <div class="result-box ${cssType}">
-      <div class="result-header">
-        <span class="rdot"></span>
-        ${type.toUpperCase()} ANALYSIS
-        <span class="result-score">${data.score}/100</span>
-      </div>
-      <div class="result-body">
-        <div class="verdict">${emoji} ${label}</div>
-        <div class="badges-row">${mlHtml}${srcHtml}${ocrHtml}</div>
-        <div class="explanation">${data.explanation||''}</div>
-        ${items.length?`<div class="tactics">${tagsHtml}</div>`:''}
-        <div class="risk-bar-wrap">
-          <div class="risk-bar-track"><div class="risk-bar-fill" id="${barId}" style="width:0%;background:${barColor}"></div></div>
-          <span class="risk-bar-label" style="color:${barColor}">${data.score}%</span>
-        </div>
-        <div class="tips-inline">
-          <div class="tips-inline-title">Safety Reminders</div>
-          ${tipsHtml}
-        </div>
-      </div>
-    </div>`;
-
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    const f=document.getElementById(barId); if(f) f.style.width=data.score+'%';
-  }));
-}
-
-// ── ANALYZE TEXT ───────────────────────────────────────────────────────────
-async function analyzeText() {
-  const msg = document.getElementById('messageInput').value.trim();
-  if (!msg) { showInfo('Please paste a message to analyze.'); return; }
-  setLoading('analyzeTextBtn',true);
-  showInfo('ANALYZING WITH ML + AI…');
-  try {
-    let data;
-    if (backendOnline) { try { data=await tryBackend('/analyze-text',{message:msg,lang:currentLang,use_ai:true}); } catch { backendOnline=false; } }
-    if (!data&&apiKey)  data = await callClaudeText(msg);
-    if (!data) { const l=localScore(msg); data={...l,safety_tips:SAFETY_TIPS,source:'Local Rules (add API key for AI)'}; }
-    renderResult(data,'Message');
-  } catch(e) {
-    if (e.message==='no_key')            showError('No API key saved. Enter your Anthropic API key above and click <strong>Connect AI</strong>.');
-    else if (e.message?.includes('401')) showError('Invalid API key. Please check and re-enter your Anthropic API key.');
-    else                                 showError(e.message||'Analysis failed.');
-  }
-  setLoading('analyzeTextBtn',false);
-}
-
-// ── ANALYZE URL ────────────────────────────────────────────────────────────
-async function analyzeURL() {
-  const url = document.getElementById('urlInput').value.trim();
-  if (!url) { showInfo('Please paste a URL to scan.'); return; }
-  setLoading('analyzeUrlBtn',true);
-  showInfo('SCANNING URL…');
-  try {
-    let data;
-    if (backendOnline) { try { data=await tryBackend('/analyze-url',{url,lang:currentLang,use_ai:true}); } catch { backendOnline=false; } }
-    if (!data&&apiKey)  data = await callClaudeURL(url);
-    if (!data) { const l=localScoreURL(url); data={...l,safety_tips:SAFETY_TIPS,source:'Local Rules'}; }
-    renderResult(data,'URL');
-  } catch(e) { showError(e.message||'Scan failed.'); }
-  setLoading('analyzeUrlBtn',false);
-}
-
-// ── SCREENSHOT ─────────────────────────────────────────────────────────────
-const uploadZone = document.getElementById('uploadZone');
-uploadZone.addEventListener('dragover', e=>{ e.preventDefault(); uploadZone.classList.add('dragover'); });
-uploadZone.addEventListener('dragleave',()=> uploadZone.classList.remove('dragover'));
-uploadZone.addEventListener('drop', e=>{ e.preventDefault(); uploadZone.classList.remove('dragover'); const f=e.dataTransfer.files[0]; if(f&&f.type.startsWith('image/')) processFile(f); });
-
-// Ctrl+V paste anywhere on screenshot tab
-document.getElementById('screenshotSection').addEventListener('paste', e=>{
-  const items = e.clipboardData?.items;
-  if (!items) return;
-  for (const item of items) { if(item.type.startsWith('image/')) { processFile(item.getAsFile()); break; } }
-});
-
-function handleFile(e) { const f=e.target.files[0]; if(f) processFile(f); }
-
-function processFile(file) {
-  uploadedMime = ['image/jpeg','image/png','image/webp','image/gif'].includes(file.type) ? file.type : 'image/jpeg';
-  const reader = new FileReader();
-  reader.onload = e => {
-    const dataUrl = e.target.result;
-    uploadedB64 = dataUrl.split(',')[1];
-    document.getElementById('previewImg').src = dataUrl;
-    document.getElementById('previewWrap').style.display = 'block';
-    document.getElementById('uploadZone').style.display  = 'none';
-    runOCR();
-  };
-  reader.readAsDataURL(file);
-}
-
-async function runOCR() {
-  const ocrBlock = document.getElementById('ocrBlock');
-  const ocrText  = document.getElementById('ocrText');
-  const btn      = document.getElementById('analyzeImgBtn');
-  ocrBlock.style.display='block'; ocrText.textContent='⏳ Extracting text from screenshot…';
-  extractedText=''; btn.disabled=true;
-
-  if (!apiKey) {
-    // Try backend /ocr endpoint
-    try {
-      const blob = await (await fetch('data:'+uploadedMime+';base64,'+uploadedB64)).blob();
-      const form = new FormData(); form.append('file', blob, 'screenshot.png');
-      const r = await fetch(BACKEND+'/ocr',{method:'POST',body:form,signal:AbortSignal.timeout(15000)});
-      if (r.ok) { const d=await r.json(); extractedText=d.text||''; ocrText.textContent=extractedText||'(No text detected)'; btn.disabled=!extractedText; return; }
-    } catch {}
-    ocrText.textContent='⚠ Enter your Anthropic API key above and click Connect AI to enable screenshot analysis.';
-    return;
+  /* ──────────────── TAB SWITCHING ──────────────── */
+  function showTab(tab) {
+    ["text","url","screenshot"].forEach(t => {
+      document.getElementById(t+"Section").classList.remove("active");
+      document.getElementById("tab-"+t).classList.remove("active");
+    });
+    document.getElementById(tab+"Section").classList.add("active");
+    document.getElementById("tab-"+tab).classList.add("active");
   }
 
-  try {
-    extractedText = await claudeExtractText(uploadedB64, uploadedMime);
-    ocrText.textContent = extractedText||'(No text detected in image)';
-    btn.disabled = !extractedText;
-  } catch(e) {
-    ocrText.textContent = '⚠ Could not extract text: '+e.message;
-  }
-}
-
-function removeImage() {
-  uploadedB64=null; extractedText='';
-  document.getElementById('previewWrap').style.display ='none';
-  document.getElementById('ocrBlock').style.display    ='none';
-  document.getElementById('uploadZone').style.display  ='block';
-  document.getElementById('fileInput').value           ='';
-  document.getElementById('analyzeImgBtn').disabled    =true;
-  document.getElementById('resultBox').innerHTML       ='';
-}
-
-async function analyzeScreenshot() {
-  if (!extractedText) return;
-  setLoading('analyzeImgBtn',true);
-  showInfo('ANALYZING SCREENSHOT — ML + AI…');
-  try {
-    let data;
-    if (backendOnline) { try { data=await tryBackend('/analyze-text',{message:extractedText,lang:currentLang,use_ai:true}); } catch { backendOnline=false; } }
-    if (!data&&apiKey)  data = await callClaudeText(extractedText);
-    if (!data) { const l=localScore(extractedText); data={...l,safety_tips:SAFETY_TIPS,source:'Local Rules'}; }
-    renderResult(data,'Screenshot');
-  } catch(e) { showError('Could not analyze screenshot. '+e.message); }
-  setLoading('analyzeImgBtn',false);
-}
-
-// ── INIT ───────────────────────────────────────────────────────────────────
-checkHealth();
-setInterval(checkHealth, 30000);
-</script>
-</body>
-</html><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PhishNet — AI Social Engineering Detector</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-:root {
-  --bg:     #04050e;
-  --s1:     #090b18;
-  --s2:     #0e1020;
-  --border: rgba(255,255,255,0.07);
-  --border2:rgba(255,255,255,0.13);
-  --cyan:   #00e5ff;
-  --purple: #7b2fff;
-  --pink:   #ff3cac;
-  --text:   #eeeef8;
-  --muted:  #55567a;
-  --danger: #ff4444;
-  --safe:   #00e5a0;
-  --warn:   #ffd600;
-}
-*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-body {
-  background:var(--bg); color:var(--text);
-  font-family:'Syne', sans-serif; min-height:100vh; overflow-x:hidden;
-}
-body::before {
-  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
-  background:
-    radial-gradient(ellipse 70% 50% at 0% 0%,   rgba(0,229,255,0.07)  0%, transparent 60%),
-    radial-gradient(ellipse 60% 60% at 100% 100%,rgba(123,47,255,0.09) 0%, transparent 60%),
-    radial-gradient(ellipse 40% 40% at 50% 50%,  rgba(255,60,172,0.03) 0%, transparent 70%);
-}
-body::after {
-  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
-  background-image:
-    linear-gradient(rgba(255,255,255,0.015) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(255,255,255,0.015) 1px,transparent 1px);
-  background-size:44px 44px;
-}
-.wrap { position:relative; z-index:1; max-width:900px; margin:0 auto; padding:48px 24px 80px; }
-
-/* ── NAV ──────────────────────────────────────── */
-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:60px; }
-.nav-logo {
-  font-size:18px; font-weight:800; letter-spacing:-0.02em;
-  background:linear-gradient(90deg,var(--cyan),var(--purple));
-  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
-}
-.status-chips { display:flex; gap:6px; }
-.chip {
-  display:flex; align-items:center; gap:5px;
-  background:var(--s1); border:1px solid var(--border2);
-  padding:5px 12px; border-radius:100px;
-  font-size:11px; font-family:'DM Mono',monospace;
-}
-.chip-dot { width:6px; height:6px; border-radius:50%; background:var(--muted); }
-.chip-dot.live { background:var(--safe);  box-shadow:0 0 5px var(--safe);  animation:pulse 2s infinite; }
-.chip-dot.cyan { background:var(--cyan);  box-shadow:0 0 5px var(--cyan);  animation:pulse 2s infinite; }
-.chip-dot.warn { background:var(--warn); }
-
-/* ── API KEY BANNER ────────────────────────────── */
-.apikey-banner {
-  background:rgba(0,229,255,0.06); border:1px solid rgba(0,229,255,0.2);
-  border-radius:12px; padding:14px 18px; margin-bottom:24px;
-  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-}
-.apikey-label { font-size:11px; font-family:'DM Mono',monospace; color:var(--muted); white-space:nowrap; }
-.apikey-banner input[type=password] {
-  flex:1; min-width:200px; height:38px;
-  background:rgba(0,0,0,0.3); border:1px solid rgba(0,229,255,0.25);
-  border-radius:7px; color:var(--cyan);
-  font-family:'DM Mono',monospace; font-size:12px;
-  padding:8px 12px; outline:none; transition:border-color 0.2s;
-}
-.apikey-banner input[type=password]:focus { border-color:rgba(0,229,255,0.6); }
-.apikey-banner input[type=password]::placeholder { color:rgba(0,229,255,0.3); }
-.apikey-save {
-  background:rgba(0,229,255,0.12); border:1px solid rgba(0,229,255,0.3);
-  color:var(--cyan); font-family:'Syne',sans-serif; font-size:12px; font-weight:700;
-  padding:8px 16px; border-radius:7px; cursor:pointer; transition:all 0.18s; white-space:nowrap;
-}
-.apikey-save:hover { background:rgba(0,229,255,0.2); border-color:rgba(0,229,255,0.5); }
-.apikey-status { font-size:11px; font-family:'DM Mono',monospace; padding:3px 9px; border-radius:100px; }
-
-/* ── HERO ──────────────────────────────────────── */
-.hero { margin-bottom:52px; }
-.hero-badge {
-  display:inline-flex; align-items:center; gap:7px;
-  background:rgba(0,229,255,0.06); border:1px solid rgba(0,229,255,0.18);
-  padding:5px 13px; border-radius:100px;
-  font-size:11px; font-family:'DM Mono',monospace;
-  color:var(--cyan); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:22px;
-}
-.hero h1 {
-  font-size:clamp(2.6rem,7vw,4.8rem); font-weight:800;
-  line-height:1.0; letter-spacing:-0.03em;
-  background:linear-gradient(135deg,#fff 20%,rgba(0,229,255,0.85) 60%,rgba(123,47,255,0.8) 100%);
-  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; margin-bottom:16px;
-}
-.hero p { font-size:16px; color:var(--muted); line-height:1.65; max-width:520px; font-weight:400; }
-
-/* ── MODE BAR ──────────────────────────────────── */
-.mode-bar { display:none; align-items:center; gap:8px; margin-bottom:20px; font-size:11px; font-family:'DM Mono',monospace; color:var(--muted); }
-.mode-indicator { display:flex; align-items:center; gap:5px; padding:4px 11px; border-radius:100px; border:1px solid var(--border); font-size:11px; }
-.mode-indicator.backend { border-color:rgba(0,229,160,0.3); color:var(--safe); }
-.mode-indicator.direct  { border-color:rgba(0,229,255,0.3); color:var(--cyan); }
-.mode-indicator.rules   { border-color:var(--border2); color:var(--muted); }
-
-/* ── LANG ──────────────────────────────────────── */
-.lang-bar { display:flex; align-items:center; gap:5px; margin-bottom:28px; }
-.lang-label { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:0.12em; text-transform:uppercase; margin-right:6px; }
-.lang-btn { background:var(--s1); border:1px solid var(--border); color:var(--muted); font-family:'Syne',sans-serif; font-size:12px; font-weight:700; padding:5px 13px; border-radius:6px; cursor:pointer; transition:all 0.18s; }
-.lang-btn:hover { border-color:rgba(0,229,255,0.3); color:var(--cyan); }
-.lang-btn.active { background:rgba(0,229,255,0.08); border-color:rgba(0,229,255,0.35); color:var(--cyan); }
-
-/* ── TABS ──────────────────────────────────────── */
-.tab-row { display:flex; gap:3px; background:var(--s1); border:1px solid var(--border); padding:5px; border-radius:12px; margin-bottom:20px; }
-.tab-btn { flex:1; background:transparent; border:none; color:var(--muted); font-family:'Syne',sans-serif; font-size:14px; font-weight:700; padding:11px 16px; border-radius:8px; cursor:pointer; transition:all 0.18s; display:flex; align-items:center; justify-content:center; gap:7px; }
-.tab-btn:hover { color:var(--text); }
-.tab-btn.active { background:var(--s2); color:var(--text); border:1px solid var(--border2); }
-.tab-btn.active svg { color:var(--cyan); }
-
-/* ── CARD ──────────────────────────────────────── */
-.card { background:var(--s1); border:1px solid var(--border2); border-radius:16px; padding:28px; margin-bottom:28px; transition:border-color 0.3s; }
-.card:hover { border-color:rgba(255,255,255,0.14); }
-.section { display:none; } .section.active { display:block; }
-
-/* ── INPUTS ────────────────────────────────────── */
-textarea, input[type=text] {
-  width:100%;
-  background:linear-gradient(135deg,rgba(160,130,255,0.08),rgba(100,80,200,0.05));
-  border:1px solid rgba(160,130,255,0.28);
-  border-radius:10px; color:#ddd8ff;
-  font-family:'DM Mono',monospace; font-size:13px; line-height:1.65;
-  padding:14px 16px; resize:none; outline:none; transition:border-color 0.2s,box-shadow 0.2s;
-}
-textarea { height:140px; }
-input[type=text] { height:50px; }
-textarea:focus, input[type=text]:focus { border-color:rgba(160,130,255,0.6); box-shadow:0 0 0 3px rgba(123,47,255,0.09); }
-textarea::placeholder, input[type=text]::placeholder { color:rgba(150,130,200,0.45); font-size:12.5px; }
-
-/* ── SCREENSHOT ZONE ───────────────────────────── */
-.upload-zone {
-  width:100%; border:2px dashed rgba(160,130,255,0.3); border-radius:10px; padding:38px 20px;
-  text-align:center; cursor:pointer;
-  background:linear-gradient(135deg,rgba(160,130,255,0.05),rgba(100,80,200,0.03));
-  position:relative; transition:all 0.22s;
-}
-.upload-zone:hover,.upload-zone.dragover { border-color:rgba(0,229,255,0.45); background:rgba(0,229,255,0.035); }
-.upload-zone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
-.upload-icon { font-size:36px; display:block; margin-bottom:11px; opacity:0.6; }
-.upload-title { font-size:14px; font-weight:700; color:var(--text); margin-bottom:6px; }
-.upload-sub { font-size:11.5px; color:var(--muted); line-height:1.65; font-family:'DM Mono',monospace; }
-.upload-sub span { color:var(--cyan); }
-.preview-wrap { display:none; margin-top:16px; position:relative; }
-.preview-img { width:100%; max-height:240px; object-fit:contain; border-radius:9px; border:1px solid var(--border2); background:rgba(255,255,255,0.02); }
-.preview-remove { position:absolute; top:8px; right:8px; background:rgba(4,5,14,0.8); border:1px solid var(--border2); color:var(--muted); width:26px; height:26px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:14px; transition:all 0.18s; }
-.preview-remove:hover { background:rgba(255,68,68,0.18); color:var(--danger); border-color:rgba(255,68,68,0.3); }
-.ocr-block { display:none; margin-top:12px; background:rgba(0,229,255,0.04); border:1px solid rgba(0,229,255,0.14); border-radius:9px; padding:12px 14px; }
-.ocr-block-label { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:7px; }
-.ocr-block-text { font-family:'DM Mono',monospace; font-size:11.5px; color:rgba(200,210,230,0.62); line-height:1.75; max-height:90px; overflow-y:auto; white-space:pre-wrap; word-break:break-word; }
-
-/* ── BUTTON ────────────────────────────────────── */
-.analyze-btn {
-  width:100%; margin-top:14px; padding:15px 24px;
-  background:linear-gradient(135deg,rgba(0,229,255,0.12),rgba(123,47,255,0.14));
-  border:1px solid rgba(0,229,255,0.28); border-radius:10px;
-  color:var(--cyan); font-family:'Syne',sans-serif; font-size:15px; font-weight:700; letter-spacing:0.02em;
-  cursor:pointer; transition:all 0.22s;
-  display:flex; align-items:center; justify-content:center; gap:8px;
-}
-.analyze-btn:hover { border-color:rgba(0,229,255,0.55); transform:translateY(-1px); box-shadow:0 8px 28px rgba(0,229,255,0.1); }
-.analyze-btn:active { transform:translateY(0); }
-.analyze-btn.loading { pointer-events:none; opacity:0.65; }
-.analyze-btn:disabled { opacity:0.4; cursor:not-allowed; transform:none; pointer-events:none; }
-.spinner { width:16px; height:16px; border:2px solid rgba(0,229,255,0.18); border-top-color:var(--cyan); border-radius:50%; animation:spin 0.65s linear infinite; display:none; }
-.loading .spinner { display:block; } .loading .btn-txt { display:none; }
-
-/* ── RESULT BOX ────────────────────────────────── */
-#resultBox { margin-top:20px; }
-.result-box { border-radius:12px; overflow:hidden; border:1px solid var(--border); animation:fadeUp 0.4s ease; }
-.result-header { display:flex; align-items:center; gap:10px; padding:12px 16px; font-size:11px; font-family:'DM Mono',monospace; letter-spacing:0.1em; text-transform:uppercase; }
-.rdot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
-.result-score { margin-left:auto; font-size:12px; }
-.result-body { padding:16px 18px 22px; font-size:13.5px; line-height:1.7; color:rgba(230,230,245,0.88); border-top:1px solid var(--border); }
-.verdict { font-weight:800; font-size:17px; margin-bottom:10px; letter-spacing:-0.01em; }
-.badges-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
-.ml-badge { display:inline-flex; align-items:center; gap:5px; background:rgba(123,47,255,0.1); border:1px solid rgba(123,47,255,0.25); padding:3px 10px; border-radius:4px; font-size:10px; font-family:'DM Mono',monospace; color:rgba(180,130,255,0.9); }
-.source-badge { display:inline-flex; align-items:center; gap:5px; background:rgba(0,229,255,0.07); border:1px solid rgba(0,229,255,0.2); padding:3px 10px; border-radius:4px; font-size:10px; font-family:'DM Mono',monospace; color:rgba(0,229,255,0.75); }
-.ocr-badge { display:inline-flex; align-items:center; gap:5px; background:rgba(255,214,0,0.07); border:1px solid rgba(255,214,0,0.2); padding:3px 10px; border-radius:4px; font-size:10px; font-family:'DM Mono',monospace; color:rgba(255,214,0,0.8); }
-.explanation { font-size:13px; opacity:0.82; margin-bottom:14px; line-height:1.72; }
-
-/* ── THREAT SCORE RING ─────────────────────────── */
-.metrics-grid {
-  display:grid; grid-template-columns:auto 1fr; gap:20px; align-items:start;
-  background:rgba(255,255,255,0.025); border:1px solid var(--border);
-  border-radius:11px; padding:18px; margin-bottom:16px;
-}
-.score-ring-wrap { display:flex; flex-direction:column; align-items:center; gap:6px; }
-.score-ring { position:relative; width:88px; height:88px; }
-.score-ring svg { transform:rotate(-90deg); }
-.score-ring-track { fill:none; stroke:rgba(255,255,255,0.07); stroke-width:8; }
-.score-ring-fill  { fill:none; stroke-width:8; stroke-linecap:round; transition:stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1); }
-.score-ring-label { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-.score-ring-num { font-family:'DM Mono',monospace; font-size:20px; font-weight:700; line-height:1; }
-.score-ring-pct { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; }
-.score-ring-verdict { font-family:'DM Mono',monospace; font-size:9.5px; text-transform:uppercase; letter-spacing:0.08em; text-align:center; }
-
-/* ── STACKED CONTRIBUTION BARS ─────────────────── */
-.contributions { flex:1; }
-.contrib-title { font-family:'DM Mono',monospace; font-size:9.5px; color:var(--muted); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:10px; }
-.contrib-row { margin-bottom:9px; }
-.contrib-row-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
-.contrib-label { font-family:'DM Mono',monospace; font-size:10.5px; color:var(--muted); }
-.contrib-pts { font-family:'DM Mono',monospace; font-size:10.5px; }
-.contrib-track { height:5px; background:rgba(255,255,255,0.07); border-radius:3px; overflow:hidden; }
-.contrib-fill { height:100%; border-radius:3px; transition:width 0.9s cubic-bezier(0.4,0,0.2,1); }
-.contrib-fill.ml     { background:linear-gradient(90deg,rgba(123,47,255,0.8),#a855f7); }
-.contrib-fill.strong { background:linear-gradient(90deg,rgba(255,68,68,0.8),#ff4444); }
-.contrib-fill.moderate { background:linear-gradient(90deg,rgba(255,214,0,0.8),#ffd600); }
-
-/* ── TACTICS & RISK BAR ────────────────────────── */
-.tactics { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; margin-bottom:6px; }
-.tag { font-size:10.5px; font-family:'DM Mono',monospace; padding:3px 10px; border-radius:4px; font-weight:500; }
-.risk-bar-wrap { display:flex; align-items:center; gap:10px; margin-top:12px; }
-.risk-bar-track { flex:1; height:6px; background:rgba(255,255,255,0.07); border-radius:3px; overflow:hidden; }
-.risk-bar-fill { height:100%; border-radius:3px; transition:width 0.9s cubic-bezier(0.4,0,0.2,1); }
-.risk-bar-label { font-size:11px; font-family:'DM Mono',monospace; min-width:36px; text-align:right; }
-
-/* ── SIGNAL DETAILS PANEL ──────────────────────── */
-.signals-panel {
-  margin-top:14px;
-  background:rgba(255,255,255,0.02); border:1px solid var(--border);
-  border-radius:9px; overflow:hidden;
-}
-.signals-toggle {
-  width:100%; background:transparent; border:none; text-align:left;
-  padding:10px 14px; cursor:pointer; display:flex; align-items:center; justify-content:space-between;
-  font-family:'DM Mono',monospace; font-size:10px; color:var(--muted);
-  letter-spacing:0.1em; text-transform:uppercase; transition:color 0.18s;
-}
-.signals-toggle:hover { color:var(--text); }
-.signals-toggle-arrow { font-size:11px; transition:transform 0.25s; }
-.signals-toggle.open .signals-toggle-arrow { transform:rotate(180deg); }
-.signals-body { display:none; border-top:1px solid var(--border); }
-.signals-body.visible { display:block; }
-
-.signal-row {
-  display:flex; align-items:flex-start; gap:10px;
-  padding:9px 14px; border-bottom:1px solid var(--border); font-size:12px; line-height:1.55;
-}
-.signal-row:last-child { border-bottom:none; }
-.signal-icon { flex-shrink:0; font-size:13px; margin-top:1px; }
-.signal-text { flex:1; color:rgba(220,220,240,0.75); }
-.signal-text strong { color:var(--text); font-weight:700; display:block; margin-bottom:2px; }
-.signal-pts {
-  flex-shrink:0; font-family:'DM Mono',monospace; font-size:10px;
-  padding:2px 8px; border-radius:4px;
-  background:rgba(255,255,255,0.05); color:var(--muted);
-}
-.signal-pts.high { background:rgba(255,68,68,0.12); color:#ff8888; }
-.signal-pts.med  { background:rgba(255,214,0,0.1);  color:#ffe566; }
-.signal-pts.safe { background:rgba(0,229,160,0.1);  color:#7dffd0; }
-
-/* ── REASONS PANEL ─────────────────────────────── */
-.reasons-panel { margin-top:14px; }
-.reasons-title { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:9px; }
-.reason-item { display:flex; gap:8px; font-size:12px; color:rgba(200,200,220,0.7); padding:5px 0; border-bottom:1px solid var(--border); }
-.reason-item:last-child { border-bottom:none; }
-.reason-item.danger-reason { color:rgba(255,140,140,0.8); }
-.reason-item.safe-reason   { color:rgba(120,255,200,0.8); }
-
-/* ── TIPS INLINE ───────────────────────────────── */
-.tips-inline { margin-top:15px; }
-.tips-inline-title { font-size:10px; font-family:'DM Mono',monospace; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:7px; }
-.tip-item { font-size:12px; color:rgba(200,200,220,0.7); padding:4px 0; border-bottom:1px solid var(--border); display:flex; gap:8px; }
-.tip-item:last-child { border-bottom:none; }
-
-/* ── PERF FOOTER ───────────────────────────────── */
-.perf-footer {
-  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-  margin-top:14px; padding-top:12px; border-top:1px solid var(--border);
-  font-family:'DM Mono',monospace; font-size:9.5px; color:var(--muted);
-}
-.perf-item { display:flex; align-items:center; gap:5px; }
-.perf-dot { width:5px; height:5px; border-radius:50%; background:var(--muted); }
-.perf-dot.active { background:var(--safe); }
-
-/* ── RESULT THEMES ─────────────────────────────── */
-.result-box.danger .result-header { background:rgba(255,68,68,0.08); color:var(--danger); }
-.result-box.danger .rdot  { background:var(--danger); box-shadow:0 0 6px var(--danger); }
-.result-box.danger .tag   { background:rgba(255,68,68,0.1); color:#ff8888; border:1px solid rgba(255,68,68,0.2); }
-.result-box.safe   .result-header { background:rgba(0,229,160,0.08); color:var(--safe); }
-.result-box.safe   .rdot  { background:var(--safe);  box-shadow:0 0 6px var(--safe); }
-.result-box.safe   .tag   { background:rgba(0,229,160,0.1); color:#7dffd0; border:1px solid rgba(0,229,160,0.2); }
-.result-box.warn   .result-header { background:rgba(255,214,0,0.08); color:var(--warn); }
-.result-box.warn   .rdot  { background:var(--warn);  box-shadow:0 0 6px var(--warn); }
-.result-box.warn   .tag   { background:rgba(255,214,0,0.1); color:#ffe566; border:1px solid rgba(255,214,0,0.2); }
-.result-box.info   .result-header { background:rgba(0,229,255,0.06); color:var(--cyan); }
-.result-box.info   .rdot  { background:var(--cyan); animation:pulse 1.4s infinite; }
-
-/* ── THREAT GRID ───────────────────────────────── */
-.tips-section { margin-top:16px; }
-.tips-label { font-size:10px; font-family:'DM Mono',monospace; color:var(--muted); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:12px; }
-.tips-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-.tip-card { background:var(--s1); border:1px solid var(--border); border-radius:12px; padding:16px 14px; transition:border-color 0.2s,transform 0.18s; cursor:default; }
-.tip-card:hover { border-color:rgba(123,47,255,0.3); transform:translateY(-2px); }
-.tip-icon { font-size:22px; margin-bottom:8px; }
-.tip-title { font-size:12px; font-weight:700; color:var(--text); margin-bottom:4px; }
-.tip-desc { font-size:11px; color:var(--muted); line-height:1.5; }
-
-.footer { text-align:center; margin-top:52px; font-size:11px; font-family:'DM Mono',monospace; color:var(--muted); opacity:0.4; }
-
-/* ── ANIMATIONS ────────────────────────────────── */
-@keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
-@keyframes pulse  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
-@keyframes spin   { to{transform:rotate(360deg)} }
-
-@media(max-width:600px) {
-  .tips-grid { grid-template-columns:1fr 1fr; }
-  .tips-grid .tip-card:last-child { grid-column:span 2; }
-  .hero h1 { font-size:2.5rem; }
-  .apikey-banner { flex-direction:column; }
-  .status-chips { display:none; }
-  .metrics-grid { grid-template-columns:1fr; }
-  .score-ring-wrap { flex-direction:row; gap:16px; align-items:center; }
-}
-</style>
-</head>
-<body>
-<div class="wrap">
-
-  <!-- NAV -->
-  <nav>
-    <div class="nav-logo">🛡 PhishNet</div>
-    <div class="status-chips">
-      <div class="chip"><span class="chip-dot" id="mlDot"></span><span id="mlText" style="color:var(--muted)">ML</span></div>
-      <div class="chip"><span class="chip-dot" id="aiDot"></span><span id="aiText" style="color:var(--muted)">AI</span></div>
-    </div>
-  </nav>
-
-  <!-- API KEY BANNER -->
-  <div class="apikey-banner">
-    <span class="apikey-label">🔑 API Key</span>
-    <input type="password" id="apikeyInput" placeholder="Paste your Anthropic API key (sk-ant-api03-…)">
-    <button class="apikey-save" onclick="saveApiKey()">Connect AI</button>
-    <span id="apikeyStatus" class="apikey-status"></span>
-  </div>
-
-  <!-- HERO -->
-  <div class="hero">
-    <div class="hero-badge">
-      <span style="width:6px;height:6px;border-radius:50%;background:var(--cyan);display:inline-block;animation:pulse 2s infinite"></span>
-      AI Security Model v4.0 · ML + OCR + Signal Breakdown
-    </div>
-    <h1>Detect Threats<br>Before They Strike</h1>
-    <p>Powered by ML + Claude AI. Analyze messages, URLs, or screenshots — get a full threat breakdown with signal weights, score contributions, and reasons.</p>
-  </div>
-
-  <!-- MODE -->
-  <div class="mode-bar" id="modeBar">
-    <span>Analysis mode:</span>
-    <span class="mode-indicator" id="modeIndicator"></span>
-  </div>
-
-  <!-- LANG -->
-  <div class="lang-bar">
-    <span class="lang-label">Language</span>
-    <button class="lang-btn active" onclick="setLang('en')">EN</button>
-    <button class="lang-btn" onclick="setLang('hi')">हि</button>
-    <button class="lang-btn" onclick="setLang('kn')">ಕ</button>
-  </div>
-
-  <!-- TABS -->
-  <div class="tab-row">
-    <button class="tab-btn active" id="tabMsg" onclick="showTab('text')">
-      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      Message Analysis
-    </button>
-    <button class="tab-btn" id="tabUrl" onclick="showTab('url')">
-      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-      URL Scanner
-    </button>
-    <button class="tab-btn" id="tabImg" onclick="showTab('screenshot')">
-      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-      Screenshot
-    </button>
-  </div>
-
-  <!-- CARD -->
-  <div class="card">
-
-    <!-- MESSAGE -->
-    <div id="textSection" class="section active">
-      <textarea id="messageInput" placeholder="Paste a suspicious message, email, or SMS here…&#10;&#10;e.g. URGENT: Your account will be suspended in 24 hours. Click here to verify immediately."></textarea>
-      <button class="analyze-btn" id="analyzeTextBtn" onclick="analyzeText()">
-        <div class="spinner"></div>
-        <span class="btn-txt">
-          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" style="vertical-align:-3px;margin-right:5px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          Analyze Message
-        </span>
-      </button>
-    </div>
-
-    <!-- URL -->
-    <div id="urlSection" class="section">
-      <input type="text" id="urlInput" placeholder="Paste a suspicious URL… e.g. http://secure-paypal.verify-login.ru/account">
-      <button class="analyze-btn" id="analyzeUrlBtn" onclick="analyzeURL()">
-        <div class="spinner"></div>
-        <span class="btn-txt">
-          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" style="vertical-align:-3px;margin-right:5px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          Scan URL
-        </span>
-      </button>
-    </div>
-
-    <!-- SCREENSHOT -->
-    <div id="screenshotSection" class="section">
-      <div class="upload-zone" id="uploadZone">
-        <input type="file" id="fileInput" accept="image/*" onchange="handleFile(event)">
-        <span class="upload-icon">📷</span>
-        <div class="upload-title">Drop screenshot here, click to browse, or Ctrl+V to paste</div>
-        <div class="upload-sub">JPG · PNG · WEBP supported<br><span>Image stays in your browser — only extracted text is sent for analysis</span></div>
-      </div>
-      <div class="preview-wrap" id="previewWrap">
-        <img id="previewImg" class="preview-img" src="" alt="Screenshot preview">
-        <button class="preview-remove" onclick="removeImage()">✕</button>
-      </div>
-      <div class="ocr-block" id="ocrBlock">
-        <div class="ocr-block-label">📝 Extracted Text</div>
-        <div class="ocr-block-text" id="ocrText"></div>
-      </div>
-      <button class="analyze-btn" id="analyzeImgBtn" onclick="analyzeScreenshot()" disabled>
-        <div class="spinner"></div>
-        <span class="btn-txt">
-          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" style="vertical-align:-3px;margin-right:5px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-          Analyze Screenshot
-        </span>
-      </button>
-    </div>
-
-    <div id="resultBox"></div>
-  </div>
-
-  <!-- THREAT TYPES -->
-  <div class="tips-section">
-    <div class="tips-label">Threat Types Detected</div>
-    <div class="tips-grid">
-      <div class="tip-card"><div class="tip-icon">🎣</div><div class="tip-title">Phishing</div><div class="tip-desc">Fake pages designed to steal your credentials and personal data.</div></div>
-      <div class="tip-card"><div class="tip-icon">🔗</div><div class="tip-title">Malicious Links</div><div class="tip-desc">URLs crafted to redirect you to harmful or fraudulent sites.</div></div>
-      <div class="tip-card"><div class="tip-icon">⚠️</div><div class="tip-title">Social Engineering</div><div class="tip-desc">Psychological manipulation using urgency, fear, or reward bait.</div></div>
-      <div class="tip-card"><div class="tip-icon">🏦</div><div class="tip-title">KYC / Bank Fraud</div><div class="tip-desc">Fake KYC update requests or bank impersonation attacks.</div></div>
-      <div class="tip-card"><div class="tip-icon">🎁</div><div class="tip-title">Reward Scams</div><div class="tip-desc">Fake prizes, lottery wins, and "you've been selected" traps.</div></div>
-      <div class="tip-card"><div class="tip-icon">📸</div><div class="tip-title">Screenshot Threats</div><div class="tip-desc">Analyze forwarded screenshots without clicking the original link.</div></div>
-    </div>
-  </div>
-
-  <div class="footer">phishnet v4.0 · ml + claude ai + ocr · full signal breakdown</div>
-</div>
-
-<script>
-// ── CONFIG ────────────────────────────────────────────────────────────────
-const BACKEND   = 'http://localhost:8000';
-const LANG_MAP  = { en:'English', hi:'Hindi', kn:'Kannada' };
-const SAFETY_TIPS = [
-  'Do not click links from unknown or suspicious messages.',
-  'Verify the sender\'s identity before responding.',
-  'Never share passwords, OTPs, or banking details with anyone.',
-];
-
-let currentLang   = 'en';
-let apiKey        = localStorage.getItem('pn_apikey') || '';
-let backendOnline = false;
-let uploadedB64   = null;
-let uploadedMime  = 'image/jpeg';
-let extractedText = '';
-
-// ── LOCAL RULES (offline fallback) ───────────────────────────────────────
-const LEGIT_RE = [
-  /Rs\.?\s*\d[\d,\.]+.*(?:debited|credited|transferred)/i,
-  /UPI\s*(?:txn|ref|transaction)\s*(?:no|id)?\.?\s*\d{6,}/i,
-  /(?:debited|credited)\s*(?:from|to)\s*(?:account|a\/c|VPA)/i,
-  /OTP\s*(?:for|is|:)\s*\d{4,8}/i,
-  /\d{4,8}\s*is\s*(?:your|the)\s*(?:otp|one.time)/i,
-  /Avl\s*Bal\s*INR/i,
-  /a\/c\s*(?:no\.?)?\s*[xX*]+\d{4}/i,
-  /\b(?:NEFT|RTGS|IMPS|NACH)\b/i,
-];
-
-const LOCAL_STRONG = [
-  { label:'Credential Harvesting Link',  weight:35, re:/click\s*(?:here|this\s*link|now)\s*(?:to\s*)?(?:verify|confirm|update|login|reset|claim)/i },
-  { label:'Account Suspension Threat',   weight:32, re:/your\s*account\s*(?:will\s*be|has\s*been)\s*(?:suspended|blocked|terminated|closed|deleted)/i },
-  { label:'OTP Theft Attempt',           weight:40, re:/(?:send|share|give|tell)\s*(?:us|me)?\s*(?:your\s*)?(?:otp|password|pin|cvv)/i },
-  { label:'Fake Prize / Lottery',        weight:30, re:/you\s*(?:have\s*)?(?:won|been\s*selected)\s*(?:a\s*)?(?:\$[\d,]+|prize|lottery)/i },
-  { label:'Legal / Arrest Threat',       weight:38, re:/(?:avoid|prevent)\s*(?:arrest|penalty|legal\s*action)\s*(?:by\s*)?(?:clicking|paying|calling)/i },
-  { label:'Impersonation (Govt/Agency)', weight:35, re:/(?:FIR|CBI|TRAI|ED|police|RBI|income\s*tax)\s*.*(?:registered|filed|case|notice)/i },
-  { label:'Fake KYC Demand',             weight:30, re:/kyc\s*(?:incomplete|pending|update|expire)/i },
-];
-const LOCAL_MODERATE = [
-  { label:'Urgency Pressure',    weight:12, re:/\b(?:urgent|act fast|immediately|expires?\s*(?:today|now)|24.hour)\b/i, wl:/otp.*expir|valid\s*for\s*\d+\s*min/i },
-  { label:'Fear / Intimidation', weight:14, re:/\b(?:suspend|block|arrest|penalty|fine|lose access|terminated)\b/i, wl:/debited|credited|balance|transaction/i },
-  { label:'Reward Bait',         weight:10, re:/\b(?:winner|prize|gift|lucky|congratulation|selected|reward)\b/i, wl:/cashback\s*credited|reward\s*points?\s*(?:added|earned)/i },
-];
-
-function localScore(text) {
-  const isLegit = LEGIT_RE.some(r => r.test(text));
-  const strong  = LOCAL_STRONG.filter(s => s.re.test(text));
-  const tl      = text.toLowerCase();
-  const moderate = LOCAL_MODERATE.filter(s => s.re.test(text) && !(s.wl && s.wl.test(text)));
-  const sScore  = Math.min(strong.reduce((a,s)=>a+s.weight,0), 65);
-  const mScore  = Math.min(moderate.reduce((a,s)=>a+s.weight,0), 30);
-  let final = strong.length ? Math.max(50*0.5+sScore*0.35+mScore*0.15,65) : isLegit ? Math.min(50*0.5+mScore*0.15,28) : 50*0.5+sScore*0.35+mScore*0.15;
-  final = Math.min(Math.round(final),100);
-  const risk = final>=60?'High':final>=35?'Medium':'Low';
-  const tactics = [...strong,...moderate].map(s=>s.label);
-  const reasons = [
-    ...strong.map(s=>`⚠ ${s.label} detected (+${s.weight} pts)`),
-    ...moderate.map(s=>`• ${s.label} detected (+${s.weight} pts)`),
-    ...(isLegit && !strong.length ? ['✓ Matches legitimate bank/UPI transaction pattern — score capped'] : []),
-    '• ML model: not available (backend offline)',
-  ];
-  return {
-    score:final, risk_level:risk,
-    tactics:tactics.length?tactics:['No clear tactics detected'],
-    strong_signals:strong, moderate_signals:moderate,
-    score_breakdown:{ ml_contribution:25, strong_contribution:Math.round(sScore*0.35,1), moderate_contribution:Math.round(mScore*0.15,1), ml_raw:50, strong_raw:sScore, moderate_raw:mScore },
-    reasons, explanation:isLegit&&!strong.length?'Appears to be a legitimate transactional notification.':'Contains patterns associated with social engineering.',
-    is_legitimate:isLegit&&!strong.length, source:'Local Rules (add API key for AI)', elapsed_ms:0,
-  };
-}
-
-function localScoreURL(url) {
-  const PHISH_KW=['login','verify','update','secure','account','confirm','password','signin','kyc'];
-  const BAD_TLDS=['.ru','.cn','.tk','.ml','.ga','.cf','.gq','.xyz','.top','.pw','.cc'];
-  let parsed; try { parsed=new URL(url.startsWith('http')?url:'http://'+url); } catch { parsed={hostname:'',protocol:''}; }
-  const issues_detail=[]; let score=0;
-  const add=(label,pts,reason)=>{ issues_detail.push({label,pts,reason}); score+=pts; };
-  if(url.length>75)              add('Long URL',15,`URL is ${url.length} characters long.`);
-  if(parsed.protocol!=='https:') add('No HTTPS',20,'Connection is unencrypted.');
-  if(url.includes('@'))          add('@ Symbol',25,'Forces browser to ignore everything before @.');
-  if(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(parsed.hostname)) add('IP Address',30,'Raw IP used instead of domain name.');
-  if((url.match(/\./g)||[]).length>4) add('Excessive Subdomains',15,'Many dots used to mimic legitimate domains.');
-  if((url.match(/-/g)||[]).length>3)  add('Excessive Hyphens',10,'Hyphens often used to spoof brand names.');
-  const kws=PHISH_KW.filter(k=>url.toLowerCase().includes(k));
-  if(kws.length) add('Phishing Keywords',20,`Contains: ${kws.join(', ')}`);
-  const tlds=BAD_TLDS.filter(t=>url.toLowerCase().includes(t));
-  if(tlds.length) add('Suspicious TLD',25,`TLD ${tlds[0]} is common in phishing.`);
-  if(url.split('//').length>2) add('Double-Slash Redirect',10,'Redirect obfuscation technique.');
-  score=Math.min(score,100);
-  const risk=score>=60?'High':score>=35?'Medium':'Low';
-  return {
-    score, risk_level:risk,
-    issues:issues_detail.map(i=>i.label),
-    issues_detail,
-    reasons:issues_detail.map(i=>`${i.pts>=20?'⚠':'•'} ${i.label} (+${i.pts} pts): ${i.reason}`),
-    explanation:'URL structure analysis results.',
-    source:'Local URL Rules', elapsed_ms:0,
-  };
-}
-
-// ── CLAUDE DIRECT CALLS ───────────────────────────────────────────────────
-const CH = () => ({ 'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' });
-
-async function claudeText(msg) {
-  if (!apiKey) throw new Error('no_key');
-  const local = localScore(msg);
-  const lang  = LANG_MAP[currentLang]||'English';
-  const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:CH(),body:JSON.stringify({
-    model:'claude-sonnet-4-20250514',max_tokens:700,
-    messages:[{role:'user',content:
-`Cybersecurity expert. Analyze message for phishing/social engineering.
-RULE: Real bank/UPI alerts (debits, credits, OTPs, NEFT/RTGS/IMPS) are LEGITIMATE — only flag if actively tricking user.
-
-Reply ONLY as valid JSON:
-{"risk_level":"High"|"Medium"|"Low","score":0-100,"tactics":["..."],"explanation":"2 sentences in ${lang}","reasons":["reason1","reason2"]}
-
-Message: """${msg.slice(0,700)}"""`
-    }]})});
-  if(!res.ok){const e=await res.json().catch(()=>{});throw new Error(e?.error?.message||`API ${res.status}`);}
-  const data=await res.json();
-  const parsed=JSON.parse(data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim());
-  if(local.is_legitimate){parsed.score=Math.min(parsed.score||0,25);parsed.risk_level='Low';}
-  return {...local,...parsed, strong_signals:local.strong_signals, moderate_signals:local.moderate_signals, score_breakdown:local.score_breakdown, safety_tips:SAFETY_TIPS, source:'Claude AI', ml_used:false};
-}
-
-async function claudeURL(url) {
-  if (!apiKey) throw new Error('no_key');
-  const local=localScoreURL(url);
-  const lang=LANG_MAP[currentLang]||'English';
-  const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:CH(),body:JSON.stringify({
-    model:'claude-sonnet-4-20250514',max_tokens:500,
-    messages:[{role:'user',content:
-`Cybersecurity expert. Analyze URL for phishing. Reply ONLY as valid JSON:
-{"risk_level":"High"|"Medium"|"Low","score":0-100,"issues":["..."],"explanation":"2 sentences in ${lang}","reasons":["reason1","reason2"]}
-URL: ${url}
-Local pre-scan: score=${local.score}, issues=${local.issues.join(', ')}`
-    }]})});
-  if(!res.ok)throw new Error(`API ${res.status}`);
-  const data=await res.json();
-  const parsed=JSON.parse(data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim());
-  return {...local,...parsed, issues_detail:local.issues_detail, safety_tips:SAFETY_TIPS, source:'Claude AI'};
-}
-
-async function claudeOCR(b64,mime) {
-  if(!apiKey)throw new Error('no_key');
-  const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:CH(),body:JSON.stringify({
-    model:'claude-sonnet-4-20250514',max_tokens:900,
-    messages:[{role:'user',content:[
-      {type:'image',source:{type:'base64',media_type:mime,data:b64}},
-      {type:'text',text:'Extract ALL visible text from this screenshot exactly as it appears. Include sender info, message body, URLs, button labels, timestamps, and any other visible text. Output ONLY the raw extracted text, nothing else.'}
-    ]}]})});
-  if(!res.ok)throw new Error(`Vision API ${res.status}`);
-  const data=await res.json();
-  return data.content.map(b=>b.text||'').join('').trim();
-}
-
-// ── BACKEND CALLS ─────────────────────────────────────────────────────────
-async function tryBackend(endpoint,body) {
-  const r=await fetch(BACKEND+endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(10000)});
-  if(!r.ok)throw new Error('backend_error');
-  return r.json();
-}
-
-async function tryBackendOCR(blob) {
-  const form=new FormData(); form.append('file',blob,'screenshot.png');
-  const r=await fetch(BACKEND+'/ocr',{method:'POST',body:form,signal:AbortSignal.timeout(15000)});
-  if(!r.ok)throw new Error('backend_ocr_error');
-  return r.json();
-}
-
-// ── HEALTH ────────────────────────────────────────────────────────────────
-async function checkHealth() {
-  if(apiKey){ document.getElementById('apikeyInput').value='••••••••••••••••'; document.getElementById('apikeyStatus').textContent='✓ Key saved'; document.getElementById('apikeyStatus').style.color='var(--safe)'; }
-  try {
-    const r=await fetch(BACKEND+'/health',{signal:AbortSignal.timeout(2500)});
-    const d=await r.json(); backendOnline=true;
-    setChip('mlDot','mlText',d.ml?'live':'warn',d.ml?'ML ✓':'ML ✗',d.ml?'var(--safe)':'var(--warn)');
-    setChip('aiDot','aiText',d.ai?'live':'warn',d.ai?'AI ✓':'AI ✗',d.ai?'var(--safe)':'var(--warn)');
-    showMode('backend','🖥 Backend + ML + AI');
-  } catch {
-    backendOnline=false;
-    setChip('mlDot','mlText','','ML offline','var(--muted)');
-    if(apiKey){setChip('aiDot','aiText','cyan','AI ✓','var(--cyan)');showMode('direct','🤖 Claude AI Direct');}
-    else{setChip('aiDot','aiText','','AI offline','var(--muted)');document.getElementById('modeBar').style.display='none';}
-  }
-}
-function setChip(dId,tId,cls,txt,col){
-  document.getElementById(dId).className='chip-dot'+(cls?' '+cls:'');
-  const el=document.getElementById(tId); el.textContent=txt; el.style.color=col;
-}
-function showMode(type,label){
-  const bar=document.getElementById('modeBar'),ind=document.getElementById('modeIndicator');
-  bar.style.display='flex'; ind.className='mode-indicator '+type; ind.textContent=label;
-}
-
-function saveApiKey(){
-  const val=document.getElementById('apikeyInput').value.trim();
-  if(!val||val.startsWith('•'))return;
-  if(!val.startsWith('sk-ant-')){alert('That doesn\'t look like an Anthropic API key (should start with sk-ant-)');return;}
-  apiKey=val; localStorage.setItem('pn_apikey',val);
-  document.getElementById('apikeyInput').value='••••••••••••••••';
-  document.getElementById('apikeyStatus').textContent='✓ Connected';
-  document.getElementById('apikeyStatus').style.color='var(--safe)';
-  setChip('aiDot','aiText','cyan','AI ✓','var(--cyan)');
-  if(!backendOnline)showMode('direct','🤖 Claude AI Direct');
-  if(uploadedB64&&!extractedText)runOCR();
-}
-
-// ── UI ────────────────────────────────────────────────────────────────────
-function setLang(l){
-  currentLang=l;
-  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.remove('active'));
-  document.querySelector(`.lang-btn[onclick="setLang('${l}')"]`).classList.add('active');
-}
-function showTab(t){
-  ['text','url','screenshot'].forEach(s=>{
-    document.getElementById(s==='text'?'textSection':s==='url'?'urlSection':'screenshotSection').classList.toggle('active',s===t);
-  });
-  document.getElementById('tabMsg').classList.toggle('active',t==='text');
-  document.getElementById('tabUrl').classList.toggle('active',t==='url');
-  document.getElementById('tabImg').classList.toggle('active',t==='screenshot');
-  document.getElementById('resultBox').innerHTML='';
-}
-function setLoading(id,on){const b=document.getElementById(id);b.classList.toggle('loading',on);b.disabled=on;}
-function showInfo(msg){document.getElementById('resultBox').innerHTML=`<div class="result-box info"><div class="result-header"><span class="rdot"></span>${msg}</div></div>`;}
-function showError(msg){document.getElementById('resultBox').innerHTML=`<div class="result-box warn"><div class="result-header"><span class="rdot"></span>ERROR</div><div class="result-body" style="font-size:13px;opacity:0.8">${msg}</div></div>`;}
-
-// ── RENDER RESULT (with full metrics) ────────────────────────────────────
-function renderResult(data, type) {
-  const box      = document.getElementById('resultBox');
-  const isH      = data.risk_level==='High', isM=data.risk_level==='Medium';
-  const cssType  = isH?'danger':isM?'warn':'safe';
-  const emoji    = isH?'🔴':isM?'🟡':'🟢';
-  const label    = isH?'HIGH RISK — THREAT DETECTED':isM?'SUSPICIOUS — REVIEW CAREFULLY':'SAFE — NO THREATS FOUND';
-  const barColor = isH?'#ff4444':isM?'#ffd600':'#00e5a0';
-  const ringColor= barColor;
-
-  // ── Score ring ──────────────────────────────────────────────────────
-  const R    = 36, circ = 2*Math.PI*R;
-  const pct  = data.score/100;
-  const dash = circ*(1-pct);
-  const ringHtml = `
-    <div class="score-ring-wrap">
-      <div class="score-ring">
-        <svg width="88" height="88" viewBox="0 0 88 88">
-          <circle class="score-ring-track" cx="44" cy="44" r="${R}"/>
-          <circle class="score-ring-fill" id="ringFill" cx="44" cy="44" r="${R}"
-            stroke="${ringColor}"
-            stroke-dasharray="${circ}"
-            stroke-dashoffset="${circ}"/>
-        </svg>
-        <div class="score-ring-label">
-          <span class="score-ring-num" id="ringNum" style="color:${ringColor}">0</span>
-          <span class="score-ring-pct">THREAT</span>
-        </div>
-      </div>
-      <div class="score-ring-verdict" style="color:${ringColor}">${data.risk_level.toUpperCase()}<br>RISK</div>
-    </div>`;
-
-  // ── Contribution bars ───────────────────────────────────────────────
-  const bd = data.score_breakdown || {};
-  const mlC  = bd.ml_contribution  || 0;
-  const stC  = bd.strong_contribution || 0;
-  const moC  = bd.moderate_contribution || 0;
-  const total = mlC+stC+moC||1;
-
-  const contribHtml = `
-    <div class="contributions">
-      <div class="contrib-title">Score Contribution Breakdown</div>
-      <div class="contrib-row">
-        <div class="contrib-row-header">
-          <span class="contrib-label">ML Model (50% weight)</span>
-          <span class="contrib-pts" style="color:#a855f7">+${mlC.toFixed(1)}</span>
-        </div>
-        <div class="contrib-track"><div class="contrib-fill ml" id="cML" style="width:0%"></div></div>
-      </div>
-      <div class="contrib-row">
-        <div class="contrib-row-header">
-          <span class="contrib-label">Strong Signals (35% weight)</span>
-          <span class="contrib-pts" style="color:${stC>0?'#ff8888':'var(--muted)'}">+${stC.toFixed(1)}</span>
-        </div>
-        <div class="contrib-track"><div class="contrib-fill strong" id="cST" style="width:0%"></div></div>
-      </div>
-      <div class="contrib-row">
-        <div class="contrib-row-header">
-          <span class="contrib-label">Moderate Signals (15% weight)</span>
-          <span class="contrib-pts" style="color:${moC>0?'#ffe566':'var(--muted)'}">+${moC.toFixed(1)}</span>
-        </div>
-        <div class="contrib-track"><div class="contrib-fill moderate" id="cMO" style="width:0%"></div></div>
-      </div>
-    </div>`;
-
-  // ── Tactics tags ────────────────────────────────────────────────────
-  const items = [...(data.tactics||[]),...(data.issues||[])].filter(i=>i&&!i.includes('No clear')&&!i.includes('No major'));
-  const tagsHtml = items.length ? `<div class="tactics">${items.map(t=>`<span class="tag">${t}</span>`).join('')}</div>` : '';
-
-  // ── Badges ──────────────────────────────────────────────────────────
-  const mlBadge  = (data.ml_used&&data.ml_score!=null) ? `<div class="ml-badge">🤖 ML: ${data.ml_score}% · Conf: ${data.ml_confidence}%</div>` : '';
-  const srcBadge = data.source ? `<span class="source-badge">⚡ ${data.source}</span>` : '';
-  const ocrBadge = (type==='Screenshot') ? `<span class="ocr-badge">📝 OCR</span>` : '';
-
-  // ── Signal detail rows ──────────────────────────────────────────────
-  const allSignals = [...(data.strong_signals||[]).map(s=>({...s,tier:'strong'})),...(data.moderate_signals||[]).map(s=>({...s,tier:'moderate'}))];
-  const signalRowsHtml = allSignals.map(s=>{
-    const icon  = s.tier==='strong' ? '🔴' : '🟡';
-    const cls   = s.tier==='strong' ? 'high' : 'med';
-    const reason= s.reason || (s.tier==='strong' ? 'High-confidence phishing indicator detected.' : 'Moderate-risk signal detected.');
-    return `<div class="signal-row"><span class="signal-icon">${icon}</span><div class="signal-text"><strong>${s.label}</strong>${reason}</div><span class="signal-pts ${cls}">+${s.weight} pts</span></div>`;
-  }).join('');
-
-  // Safe signal if legit
-  const legitRow = (data.is_legitimate) ? `<div class="signal-row"><span class="signal-icon">✅</span><div class="signal-text"><strong>Legitimate Transaction Pattern</strong>Score capped at 28 — matches real bank/UPI notification format.</div><span class="signal-pts safe">−cap</span></div>` : '';
-
-  const signalPanelHtml = (allSignals.length>0||data.is_legitimate) ? `
-    <div class="signals-panel">
-      <button class="signals-toggle" onclick="toggleSignals(this)">
-        <span>Signal Details (${allSignals.length} signal${allSignals.length!==1?'s':''} matched)</span>
-        <span class="signals-toggle-arrow">▼</span>
-      </button>
-      <div class="signals-body">
-        ${signalRowsHtml}${legitRow}
-      </div>
-    </div>` : '';
-
-  // ── Reasons list ────────────────────────────────────────────────────
-  const reasons = data.reasons||[];
-  const reasonsHtml = reasons.length ? `
-    <div class="reasons-panel">
-      <div class="reasons-title">Why this score?</div>
-      ${reasons.map(r=>{
-        const cls = r.startsWith('⚠')?'danger-reason':r.startsWith('✓')?'safe-reason':'';
-        return `<div class="reason-item ${cls}"><span style="flex-shrink:0">${r.charAt(0)==='⚠'?'⚠':r.charAt(0)==='✓'?'✓':'›'}</span><span>${r.slice(1).trim()}</span></div>`;
-      }).join('')}
-    </div>` : '';
-
-  // ── Safety tips ─────────────────────────────────────────────────────
-  const tipsHtml = (data.safety_tips||SAFETY_TIPS).slice(0,3).map(t=>`<div class="tip-item"><span style="color:var(--cyan)">›</span>${t}</div>`).join('');
-
-  // ── Perf footer ─────────────────────────────────────────────────────
-  const elapsed = data.elapsed_ms ? `${data.elapsed_ms}ms` : '—';
-  const perfHtml = `
-    <div class="perf-footer">
-      <span class="perf-item"><span class="perf-dot${data.ml_used?' active':''}"></span>ML ${data.ml_used?'Active':'Offline'}</span>
-      <span class="perf-item"><span class="perf-dot${data.ai_used?' active':''}"></span>AI ${data.ai_used?'Active':'Offline'}</span>
-      <span class="perf-item"><span class="perf-dot"></span>Analyzed in ${elapsed}</span>
-      <span class="perf-item"><span class="perf-dot${data.is_legitimate?' active':''}"></span>${data.is_legitimate?'Legit Transaction Detected':'No Legit Pattern'}</span>
-    </div>`;
-
-  const barId='rbf'+Date.now();
-
-  box.innerHTML=`
-    <div class="result-box ${cssType}">
-      <div class="result-header"><span class="rdot"></span>${type.toUpperCase()} ANALYSIS<span class="result-score">${data.score}/100</span></div>
-      <div class="result-body">
-        <div class="verdict">${emoji} ${label}</div>
-        <div class="badges-row">${mlBadge}${srcBadge}${ocrBadge}</div>
-        <div class="explanation">${data.explanation||''}</div>
-
-        <div class="metrics-grid">
-          ${ringHtml}
-          ${contribHtml}
-        </div>
-
-        ${tagsHtml}
-
-        <div class="risk-bar-wrap">
-          <div class="risk-bar-track"><div class="risk-bar-fill" id="${barId}" style="width:0%;background:${barColor}"></div></div>
-          <span class="risk-bar-label" style="color:${barColor}">${data.score}%</span>
-        </div>
-
-        ${signalPanelHtml}
-        ${reasonsHtml}
-
-        <div class="tips-inline"><div class="tips-inline-title">Safety Reminders</div>${tipsHtml}</div>
-
-        ${perfHtml}
-      </div>
-    </div>`;
-
-  // Animate ring, bars, number counter
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    // bar
-    const f=document.getElementById(barId); if(f) f.style.width=data.score+'%';
-    // ring
-    const ring=document.getElementById('ringFill');
-    if(ring){ const c=2*Math.PI*36; ring.style.strokeDashoffset=c*(1-data.score/100); }
-    // number counter
-    const numEl=document.getElementById('ringNum');
-    if(numEl){
-      let curr=0; const target=data.score; const step=Math.ceil(target/40);
-      const iv=setInterval(()=>{ curr=Math.min(curr+step,target); numEl.textContent=curr; if(curr>=target)clearInterval(iv); },20);
+  /* ──────────────── DRAG & DROP ──────────────── */
+  const dropZone = document.getElementById("dropZone");
+
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("drag-over");
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith("image/")) {
+      document.getElementById("screenshotInput").files = e.dataTransfer.files;
+      renderPreview(file);
     }
-    // contribution bars (as % of total score)
-    const bd=data.score_breakdown||{}; const tot=data.score||1;
-    const setW=(id,v)=>{ const el=document.getElementById(id); if(el) el.style.width=Math.min((v/tot)*100,100)+'%'; };
-    setW('cML',(bd.ml_contribution||0));
-    setW('cST',(bd.strong_contribution||0));
-    setW('cMO',(bd.moderate_contribution||0));
-  }));
-}
+  });
 
-function toggleSignals(btn){
-  btn.classList.toggle('open');
-  const body=btn.nextElementSibling;
-  body.classList.toggle('visible');
-}
-
-// ── ANALYZE TEXT ──────────────────────────────────────────────────────────
-async function analyzeText(){
-  const msg=document.getElementById('messageInput').value.trim();
-  if(!msg){showInfo('Please paste a message to analyze.');return;}
-  setLoading('analyzeTextBtn',true); showInfo('ANALYZING WITH ML + AI…');
-  try{
-    let data;
-    if(backendOnline){try{data=await tryBackend('/analyze-text',{message:msg,lang:currentLang,use_ai:true});}catch{backendOnline=false;}}
-    if(!data&&apiKey) data=await claudeText(msg);
-    if(!data){data=localScore(msg);data.safety_tips=SAFETY_TIPS;}
-    renderResult(data,'Message');
-  }catch(e){
-    if(e.message==='no_key')showError('No API key saved. Enter your Anthropic API key above and click <strong>Connect AI</strong>.');
-    else if(e.message?.includes('401'))showError('Invalid API key. Please re-enter your Anthropic API key.');
-    else showError(e.message||'Analysis failed.');
-  }
-  setLoading('analyzeTextBtn',false);
-}
-
-// ── ANALYZE URL ───────────────────────────────────────────────────────────
-async function analyzeURL(){
-  const url=document.getElementById('urlInput').value.trim();
-  if(!url){showInfo('Please paste a URL to scan.');return;}
-  setLoading('analyzeUrlBtn',true); showInfo('SCANNING URL…');
-  try{
-    let data;
-    if(backendOnline){try{data=await tryBackend('/analyze-url',{url,lang:currentLang,use_ai:true});}catch{backendOnline=false;}}
-    if(!data&&apiKey) data=await claudeURL(url);
-    if(!data){data=localScoreURL(url);data.safety_tips=SAFETY_TIPS;}
-    renderResult(data,'URL');
-  }catch(e){showError(e.message||'Scan failed.');}
-  setLoading('analyzeUrlBtn',false);
-}
-
-// ── SCREENSHOT ────────────────────────────────────────────────────────────
-const uploadZone=document.getElementById('uploadZone');
-uploadZone.addEventListener('dragover',e=>{e.preventDefault();uploadZone.classList.add('dragover');});
-uploadZone.addEventListener('dragleave',()=>uploadZone.classList.remove('dragover'));
-uploadZone.addEventListener('drop',e=>{e.preventDefault();uploadZone.classList.remove('dragover');const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/'))processFile(f);});
-document.getElementById('screenshotSection').addEventListener('paste',e=>{
-  const items=e.clipboardData?.items; if(!items)return;
-  for(const item of items){if(item.type.startsWith('image/')){processFile(item.getAsFile());break;}}
-});
-
-function handleFile(e){const f=e.target.files[0];if(f)processFile(f);}
-
-function processFile(file){
-  uploadedMime=['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)?file.type:'image/jpeg';
-  const reader=new FileReader();
-  reader.onload=e=>{
-    const dataUrl=e.target.result;
-    uploadedB64=dataUrl.split(',')[1];
-    document.getElementById('previewImg').src=dataUrl;
-    document.getElementById('previewWrap').style.display='block';
-    document.getElementById('uploadZone').style.display='none';
-    runOCR();
-  };
-  reader.readAsDataURL(file);
-}
-
-async function runOCR(){
-  const ocrBlock=document.getElementById('ocrBlock');
-  const ocrText=document.getElementById('ocrText');
-  const btn=document.getElementById('analyzeImgBtn');
-  ocrBlock.style.display='block'; ocrText.textContent='⏳ Extracting text from screenshot…';
-  extractedText=''; btn.disabled=true;
-
-  if(!apiKey){
-    // Try backend OCR
-    try{
-      const blob=await(await fetch('data:'+uploadedMime+';base64,'+uploadedB64)).blob();
-      const d=await tryBackendOCR(blob);
-      extractedText=d.text||''; ocrText.textContent=extractedText||'(No text detected)'; btn.disabled=!extractedText; return;
-    }catch{}
-    ocrText.textContent='⚠ Enter your Anthropic API key above and click Connect AI to enable screenshot analysis.'; return;
+  /* ──────────────── IMAGE PREVIEW ──────────────── */
+  function previewImage(event) {
+    const file = event.target.files[0];
+    if (file) renderPreview(file);
   }
 
-  // Try backend screenshot endpoint first (full analysis in one shot)
-  if(backendOnline){
-    try{
-      const blob=await(await fetch('data:'+uploadedMime+';base64,'+uploadedB64)).blob();
-      const form=new FormData(); form.append('file',blob,'screenshot.png');
-      const r=await fetch(BACKEND+'/analyze-screenshot',{method:'POST',body:form,signal:AbortSignal.timeout(20000)});
-      if(r.ok){
-        const d=await r.json();
-        extractedText=d.extracted_text||'';
-        ocrText.textContent=extractedText||'(No text detected)';
-        btn.disabled=false;
-        // Store result to display on button click
-        btn._preloadedResult=d;
-        return;
+  function renderPreview(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wrap = document.getElementById("imgPreviewWrap");
+      document.getElementById("imgPreview").src = e.target.result;
+      document.getElementById("previewFileName").textContent = file.name;
+      document.getElementById("previewFileSize").textContent = (file.size / 1024).toFixed(1) + " KB";
+      wrap.style.display = "block";
+    };
+    reader.readAsDataURL(file);
+    // reset result
+    const rb = document.getElementById("screenshotResult");
+    rb.innerHTML = "";
+    rb.classList.remove("visible");
+    hideError("screenshotError");
+  }
+
+  /* ──────────────── HELPERS ──────────────── */
+  function setLoading(prefix, on) {
+    document.getElementById(prefix+"Btn").disabled = on;
+    document.getElementById(prefix+"Spinner").style.display = on ? "block" : "none";
+    document.getElementById(prefix+"BtnLabel").textContent = on
+      ? (prefix === "text" ? "Analyzing…" : prefix === "url" ? "Scanning…" : "Analyzing…")
+      : (prefix === "text" ? "Analyze Message" : prefix === "url" ? "Scan URL" : "Analyze Screenshot");
+  }
+
+  function showError(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = "⚠  " + msg;
+    el.classList.add("visible");
+  }
+
+  function hideError(id) {
+    const el = document.getElementById(id);
+    el.textContent = "";
+    el.classList.remove("visible");
+  }
+
+  function normalizeScore(raw) {
+    // Accept 0–1 or 0–100 scores, always return 0–100
+    if (raw == null) return 0;
+    const n = parseFloat(raw);
+    return n <= 1 ? Math.round(n * 100) : Math.round(n);
+  }
+
+  function riskClass(level) {
+    if (!level) return "medium";
+    const l = level.toLowerCase();
+    if (l.includes("high")) return "high";
+    if (l.includes("low"))  return "low";
+    return "medium";
+  }
+
+  function renderResult(containerId, data) {
+    const rc   = riskClass(data.risk_level);
+    const pct  = normalizeScore(data.score);
+    const box  = document.getElementById(containerId);
+
+    box.innerHTML = `
+      <div class="risk-header">
+        <div class="risk-label ${rc}">${data.risk_level || "Unknown"} Risk</div>
+        <div class="risk-badge ${rc}">${rc.toUpperCase()}</div>
+      </div>
+      <div class="score-bar-wrap">
+        <div class="score-bar-label">THREAT SCORE · ${pct}%</div>
+        <div class="score-bar-bg">
+          <div class="score-bar-fill ${rc}" id="${containerId}-bar"></div>
+        </div>
+      </div>
+      <div class="meta-row">Prediction: <span>${data.prediction || "—"}</span></div>
+    `;
+
+    box.classList.add("visible");
+    // animate bar
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const bar = document.getElementById(containerId+"-bar");
+        if (bar) bar.style.width = pct + "%";
+      });
+    });
+  }
+
+  /* ──────────────── URL EXTRACTION ──────────────── */
+  function extractURLs(text) {
+    if (!text) return [];
+    // Broad URL regex covering http/https with paths, queries, fragments
+    const re = /https?:\/\/(?:[-\w.]|(?:%[\da-fA-F]{2}))+(?::\d+)?(?:\/[-\w.@:%+~#=/?&]*)?/gi;
+    const found = text.match(re) || [];
+    // Deduplicate
+    return [...new Set(found)];
+  }
+
+  /* Scan a single URL and return result */
+  async function scanSingleURL(url) {
+    const response = await fetch(API_URL + "/analyze-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url })
+    });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    return await response.json();
+  }
+
+  /* Render extracted URLs into a container, auto-scanning each */
+  async function renderExtractedURLs(containerEl, urls) {
+    if (urls.length === 0) {
+      containerEl.innerHTML = `<div class="no-urls-note">No URLs detected in the screenshot.</div>`;
+      return;
+    }
+
+    // Build cards immediately with "scanning" status
+    containerEl.innerHTML = urls.map((url, i) => `
+      <div class="url-card" id="url-card-${i}">
+        <div class="url-card-top">
+          <div class="url-text">${escapeHTML(url)}</div>
+          <div class="url-scan-status scanning" id="url-status-${i}">Scanning…</div>
+        </div>
+        <div class="url-score-bar-bg">
+          <div class="url-score-bar-fill" id="url-bar-${i}"></div>
+        </div>
+        <div class="url-prediction" id="url-pred-${i}"></div>
+      </div>
+    `).join("");
+
+    // Scan each URL concurrently
+    const promises = urls.map(async (url, i) => {
+      try {
+        const data = await scanSingleURL(url);
+        const rc  = riskClass(data.risk_level);
+        const pct = normalizeScore(data.score);
+        const card = document.getElementById("url-card-"+i);
+        if (card) {
+          card.style.borderColor = rc === "high"
+            ? "rgba(255,68,102,0.3)"
+            : rc === "medium"
+            ? "rgba(255,209,102,0.25)"
+            : "rgba(0,255,200,0.2)";
+        }
+        const statusEl = document.getElementById("url-status-"+i);
+        if (statusEl) {
+          statusEl.textContent = (data.risk_level || rc).toUpperCase() + " RISK";
+          statusEl.className   = "url-scan-status " + rc;
+        }
+        const barEl = document.getElementById("url-bar-"+i);
+        if (barEl) {
+          barEl.classList.add(rc);
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => { barEl.style.width = pct + "%"; });
+          });
+        }
+        const predEl = document.getElementById("url-pred-"+i);
+        if (predEl) {
+          predEl.textContent = "Prediction: " + (data.prediction || "—") + "  ·  Score: " + pct + "%";
+        }
+      } catch (err) {
+        const statusEl = document.getElementById("url-status-"+i);
+        if (statusEl) {
+          statusEl.textContent = "Scan Failed";
+          statusEl.className   = "url-scan-status medium";
+        }
+        const predEl = document.getElementById("url-pred-"+i);
+        if (predEl) predEl.textContent = "Error: " + err.message;
       }
-    }catch{}
+    });
+
+    await Promise.allSettled(promises);
   }
 
-  // Fallback: Claude Vision in browser
-  try{
-    extractedText=await claudeOCR(uploadedB64,uploadedMime);
-    ocrText.textContent=extractedText||'(No text detected in image)';
-    btn.disabled=!extractedText;
-  }catch(e){ocrText.textContent='⚠ Could not extract text: '+e.message;}
-}
-
-function removeImage(){
-  uploadedB64=null; extractedText='';
-  document.getElementById('previewWrap').style.display='none';
-  document.getElementById('ocrBlock').style.display='none';
-  document.getElementById('uploadZone').style.display='block';
-  document.getElementById('fileInput').value='';
-  const btn=document.getElementById('analyzeImgBtn');
-  btn.disabled=true; btn._preloadedResult=null;
-  document.getElementById('resultBox').innerHTML='';
-}
-
-async function analyzeScreenshot(){
-  // If backend already gave us the full result during OCR
-  const btn=document.getElementById('analyzeImgBtn');
-  if(btn._preloadedResult){
-    renderResult(btn._preloadedResult,'Screenshot'); return;
+  function escapeHTML(str) {
+    return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   }
-  if(!extractedText)return;
-  setLoading('analyzeImgBtn',true); showInfo('ANALYZING SCREENSHOT — ML + AI…');
-  try{
-    let data;
-    if(backendOnline){try{data=await tryBackend('/analyze-text',{message:extractedText,lang:currentLang,use_ai:true});}catch{backendOnline=false;}}
-    if(!data&&apiKey) data=await claudeText(extractedText);
-    if(!data){data=localScore(extractedText);data.safety_tips=SAFETY_TIPS;}
-    renderResult(data,'Screenshot');
-  }catch(e){showError('Could not analyze screenshot. '+e.message);}
-  setLoading('analyzeImgBtn',false);
-}
 
-// ── INIT ──────────────────────────────────────────────────────────────────
-checkHealth();
-setInterval(checkHealth,30000);
+  /* ──────────────── ANALYZE TEXT ──────────────── */
+  async function analyzeText() {
+    const message = document.getElementById("messageInput").value.trim();
+    if (!message) { showError("textError","Please enter a message to analyze."); return; }
+    hideError("textError");
+    setLoading("text", true);
+    try {
+      const response = await fetch(API_URL + "/analyze-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message })
+      });
+      if (!response.ok) throw new Error("Server returned " + response.status);
+      const data = await response.json();
+      renderResult("textResult", data);
+    } catch (err) {
+      showError("textError", "Failed to connect to analysis server. " + err.message);
+    } finally {
+      setLoading("text", false);
+    }
+  }
+
+  /* ──────────────── ANALYZE URL ──────────────── */
+  async function analyzeURL() {
+    const url = document.getElementById("urlInput").value.trim();
+    if (!url) { showError("urlError","Please enter a URL to scan."); return; }
+    hideError("urlError");
+    setLoading("url", true);
+    try {
+      const response = await fetch(API_URL + "/analyze-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url })
+      });
+      if (!response.ok) throw new Error("Server returned " + response.status);
+      const data = await response.json();
+      renderResult("urlResult", data);
+    } catch (err) {
+      showError("urlError", "Failed to connect to analysis server. " + err.message);
+    } finally {
+      setLoading("url", false);
+    }
+  }
+
+  /* ──────────────── ANALYZE SCREENSHOT ──────────────── */
+  async function analyzeScreenshot() {
+    const fileInput = document.getElementById("screenshotInput");
+    const file = fileInput.files[0];
+    if (!file) { showError("screenshotError","Please upload a screenshot first."); return; }
+    hideError("screenshotError");
+    setLoading("screenshot", true);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch(API_URL + "/analyze-screenshot", {
+        method: "POST",
+        body: formData
+      });
+      if (!response.ok) throw new Error("Server returned " + response.status);
+      const data = await response.json();
+
+      // Normalise nested vs flat response shapes
+      const analysisData = data.analysis || data;
+      const ocrText      = data.ocr_text || data.extracted_text || "";
+      const rc           = riskClass(analysisData.risk_level);
+      const pct          = normalizeScore(analysisData.score);
+
+      const box = document.getElementById("screenshotResult");
+
+      // Extract URLs from OCR text
+      const extractedURLs = extractURLs(ocrText);
+      const urlCountLabel = extractedURLs.length > 0
+        ? `<span style="color:var(--cyan)">${extractedURLs.length} URL${extractedURLs.length>1?"s":""} detected</span>`
+        : `<span style="color:var(--muted)">No URLs detected</span>`;
+
+      box.innerHTML = `
+        <div class="risk-header">
+          <div class="risk-label ${rc}">${analysisData.risk_level || "Unknown"} Risk</div>
+          <div class="risk-badge ${rc}">${rc.toUpperCase()}</div>
+        </div>
+        <div class="score-bar-wrap">
+          <div class="score-bar-label">THREAT SCORE · ${pct}%</div>
+          <div class="score-bar-bg">
+            <div class="score-bar-fill ${rc}" id="screenshotResult-bar"></div>
+          </div>
+        </div>
+        <div class="meta-row">Prediction: <span>${analysisData.prediction || "—"}</span></div>
+        ${ocrText ? `
+        <div class="meta-row" style="margin-top:14px;">Extracted Text:</div>
+        <div class="ocr-block">${escapeHTML(ocrText)}</div>
+        ` : ""}
+        <div class="url-extract-section">
+          <div class="url-extract-title">Auto URL Extraction &amp; Analysis · ${urlCountLabel}</div>
+          <div id="extractedURLsContainer"></div>
+        </div>
+      `;
+
+      box.classList.add("visible");
+
+      // Animate score bar
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const bar = document.getElementById("screenshotResult-bar");
+          if (bar) bar.style.width = pct + "%";
+        });
+      });
+
+      // Auto-scan extracted URLs
+      const urlContainer = document.getElementById("extractedURLsContainer");
+      if (urlContainer) {
+        await renderExtractedURLs(urlContainer, extractedURLs);
+      }
+
+    } catch (err) {
+      showError("screenshotError", "Failed to analyze screenshot. " + err.message);
+    } finally {
+      setLoading("screenshot", false);
+    }
+  }
 </script>
 </body>
 </html>
